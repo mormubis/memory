@@ -339,6 +339,9 @@ createMemory({
   },
   rrfK: 60,                         // RRF constant
   linkExpansionHops: 1,              // How many hops to expand during search
+
+  // Clock
+  clock: () => new Date(),           // Override for testing
 })
 ```
 
@@ -382,26 +385,28 @@ strengths and manages the lifecycle.
 
 ## Testing
 
-The library uses a clock abstraction internally for all time-dependent behavior
-(decay computation, timestamps on records). In production it uses the system
-clock. In tests, the clock is overridable:
+The library uses a clock function internally for all time-dependent behavior
+(decay computation, timestamps on records). The clock is set once at creation
+time via config and never mutated. In production the default is `() => new Date()`.
+
+For tests, pass a custom clock. To simulate time passing, the test controls the
+return value through its own variable:
 
 ```typescript
+let now = new Date('2026-01-01');
 const memory = createMemory({
   path: ':memory:',
-  clock: () => new Date('2026-01-01'),
+  clock: () => now,
 });
 
 // ... insert memories ...
 
-// advance time for decay testing
-memory.setClock(() => new Date('2026-02-01'));
-
-// now reads will compute decay as if 31 days have passed
+now = new Date('2026-02-01');
+// reads now compute 31 days of decay
 ```
 
-This avoids `setTimeout` hacks or real waiting in tests. All decay, eviction,
-and reinforcement logic uses the injected clock.
+No `setClock` method. The library calls `clock()` every time it needs the
+current time — nothing more. The test owns the state, not the library.
 
 ## What this does NOT include
 
