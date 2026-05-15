@@ -12,8 +12,7 @@ function createEmbedder(customEmbed: EmbedFunction | null): Embedder {
       return customEmbed(text);
     }
     // Lazy-load the default model
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { pipeline } = await import('@xenova/transformers' as any) as any;
+    const { pipeline } = await import('@huggingface/transformers');
     const extractor = await pipeline(
       'feature-extraction',
       'Xenova/all-MiniLM-L6-v2',
