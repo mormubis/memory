@@ -53,9 +53,7 @@ describe('findSimilar', () => {
   });
 
   it('returns null when all candidates below threshold', () => {
-    const candidates = [
-      { embedding: [0, 1, 0], id: 'a', version: 1 },
-    ];
+    const candidates = [{ embedding: [0, 1, 0], id: 'a', version: 1 }];
     const result = findSimilar([1, 0, 0], candidates, 0.9);
     expect(result).toBeNull();
   });

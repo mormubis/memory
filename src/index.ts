@@ -25,10 +25,19 @@ interface MemoryInstance {
   forget: (id: string) => void;
   get: (id: string) => Memory | null;
   history: (id: string) => Memory[];
-  link: (sourceId: string, targetId: string, relation: string, weight?: number) => void;
+  link: (
+    sourceId: string,
+    targetId: string,
+    relation: string,
+    weight?: number,
+  ) => void;
   list: (options?: ListOptions) => Memory[];
   related: (id: string, options?: RelatedOptions) => MemoryLink[];
-  remember: (type: string, content: string, strength?: number) => Promise<RememberResult>;
+  remember: (
+    type: string,
+    content: string,
+    strength?: number,
+  ) => Promise<RememberResult>;
   search: (query: string, options?: SearchOptions) => Promise<SearchResult[]>;
   unlink: (sourceId: string, targetId: string, relation?: string) => void;
 }
@@ -48,7 +57,11 @@ function createMemory(input?: MemoryConfig): MemoryInstance {
   const embedder = createEmbedder(config.embed);
   const searcher = createSearch(db, config, store, links, embedder);
 
-  async function remember(type: string, content: string, strength?: number): Promise<RememberResult> {
+  async function remember(
+    type: string,
+    content: string,
+    strength?: number,
+  ): Promise<RememberResult> {
     const embedding = await embedder.embed(content);
 
     // Load all current memories with their vectors
@@ -61,10 +74,19 @@ function createMemory(input?: MemoryConfig): MemoryInstance {
     const candidates = vectorRows.map((row) => ({
       embedding: embedder.fromBlob(row.embedding),
       id: row.memory_id,
-      version: (db.prepare('SELECT version FROM memories WHERE id = ?').get(row.memory_id) as { version: number } | undefined)?.version ?? 1,
+      version:
+        (
+          db
+            .prepare('SELECT version FROM memories WHERE id = ?')
+            .get(row.memory_id) as { version: number } | undefined
+        )?.version ?? 1,
     }));
 
-    const match = findSimilar(embedding, candidates, config.similarityThreshold);
+    const match = findSimilar(
+      embedding,
+      candidates,
+      config.similarityThreshold,
+    );
 
     let result: RememberResult;
 
@@ -90,7 +112,9 @@ function createMemory(input?: MemoryConfig): MemoryInstance {
 
     // Store embedding
     const blob = embedder.toBlob(embedding);
-    db.prepare('INSERT INTO memory_vectors (memory_id, embedding) VALUES (?, ?)').run(result.id, blob);
+    db.prepare(
+      'INSERT INTO memory_vectors (memory_id, embedding) VALUES (?, ?)',
+    ).run(result.id, blob);
 
     return result;
   }
@@ -103,7 +127,11 @@ function createMemory(input?: MemoryConfig): MemoryInstance {
 
     if (memory.current) {
       const days = daysBetween(new Date(memory.updated), now);
-      const effective = effectiveStrength(memory.strength, days, config.decayRate);
+      const effective = effectiveStrength(
+        memory.strength,
+        days,
+        config.decayRate,
+      );
 
       if (effective < config.evictionThreshold) {
         return null;
@@ -112,11 +140,9 @@ function createMemory(input?: MemoryConfig): MemoryInstance {
       const reinforced = reinforce(effective, config.reinforcementBoost);
 
       // Update DB with reinforced strength and updated timestamp
-      db.prepare('UPDATE memories SET strength = ?, updated = ? WHERE id = ?').run(
-        reinforced,
-        now.toISOString(),
-        id,
-      );
+      db.prepare(
+        'UPDATE memories SET strength = ?, updated = ? WHERE id = ?',
+      ).run(reinforced, now.toISOString(), id);
 
       return { ...memory, strength: reinforced };
     }
@@ -131,10 +157,15 @@ function createMemory(input?: MemoryConfig): MemoryInstance {
 
     for (const memory of memories) {
       const days = daysBetween(new Date(memory.updated), now);
-      const effective = effectiveStrength(memory.strength, days, config.decayRate);
+      const effective = effectiveStrength(
+        memory.strength,
+        days,
+        config.decayRate,
+      );
 
       if (effective < config.evictionThreshold) continue;
-      if (options?.minStrength !== undefined && effective < options.minStrength) continue;
+      if (options?.minStrength !== undefined && effective < options.minStrength)
+        continue;
 
       result.push({ ...memory, strength: effective });
     }
@@ -150,7 +181,12 @@ function createMemory(input?: MemoryConfig): MemoryInstance {
     return store.history(id);
   }
 
-  function link(sourceId: string, targetId: string, relation: string, weight?: number): void {
+  function link(
+    sourceId: string,
+    targetId: string,
+    relation: string,
+    weight?: number,
+  ): void {
     links.link(sourceId, targetId, relation, weight);
   }
 
@@ -162,11 +198,24 @@ function createMemory(input?: MemoryConfig): MemoryInstance {
     return links.related(id, options);
   }
 
-  function search(query: string, options?: SearchOptions): Promise<SearchResult[]> {
+  function search(
+    query: string,
+    options?: SearchOptions,
+  ): Promise<SearchResult[]> {
     return searcher.search(query, options);
   }
 
-  return { forget, get, history, link, list, related, remember, search, unlink };
+  return {
+    forget,
+    get,
+    history,
+    link,
+    list,
+    related,
+    remember,
+    search,
+    unlink,
+  };
 }
 
 export { createMemory };

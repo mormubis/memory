@@ -33,7 +33,7 @@ describe('resolveConfig', () => {
   });
 
   it('accepts a custom embed function', () => {
-    const embed = async (text: string) => [1, 2, 3];
+    const embed = async (_text: string) => [1, 2, 3];
     const config = resolveConfig({ embed });
     expect(config.embed).toBe(embed);
   });

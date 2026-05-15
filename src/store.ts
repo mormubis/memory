@@ -55,21 +55,27 @@ function createStore(db: Database.Database, config: ResolvedConfig): Store {
     const version = input.version ?? 1;
     const parentId = input.parentId ?? null;
 
-    db.prepare(`
+    db.prepare(
+      `
       INSERT INTO memories (id, type, content, strength, version, parent_id, current, created, updated)
       VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
-    `).run(id, input.type, input.content, strength, version, parentId, now, now);
+    `,
+    ).run(id, input.type, input.content, strength, version, parentId, now, now);
 
-    db.prepare(`
+    db.prepare(
+      `
       INSERT INTO memories_fts (rowid, content)
       VALUES ((SELECT rowid FROM memories WHERE id = ?), ?)
-    `).run(id, input.content);
+    `,
+    ).run(id, input.content);
 
     return { id, parentId, version };
   }
 
   function get(id: string): Memory | null {
-    const row = db.prepare('SELECT * FROM memories WHERE id = ?').get(id) as MemoryRow | undefined;
+    const row = db.prepare('SELECT * FROM memories WHERE id = ?').get(id) as
+      | MemoryRow
+      | undefined;
     return row ? rowToMemory(row) : null;
   }
 
@@ -101,12 +107,16 @@ function createStore(db: Database.Database, config: ResolvedConfig): Store {
   }
 
   function forget(id: string): void {
-    const row = db.prepare('SELECT rowid FROM memories WHERE id = ?').get(id) as { rowid: number } | undefined;
+    const row = db
+      .prepare('SELECT rowid FROM memories WHERE id = ?')
+      .get(id) as { rowid: number } | undefined;
     if (row) {
       db.prepare('DELETE FROM memories_fts WHERE rowid = ?').run(row.rowid);
     }
     db.prepare('DELETE FROM memory_vectors WHERE memory_id = ?').run(id);
-    db.prepare('DELETE FROM memory_links WHERE source_id = ? OR target_id = ?').run(id, id);
+    db.prepare(
+      'DELETE FROM memory_links WHERE source_id = ? OR target_id = ?',
+    ).run(id, id);
     db.prepare('DELETE FROM memories WHERE id = ?').run(id);
   }
 
@@ -115,7 +125,9 @@ function createStore(db: Database.Database, config: ResolvedConfig): Store {
     let currentId: string | null = id;
 
     while (currentId) {
-      const row = db.prepare('SELECT * FROM memories WHERE id = ?').get(currentId) as MemoryRow | undefined;
+      const row = db
+        .prepare('SELECT * FROM memories WHERE id = ?')
+        .get(currentId) as MemoryRow | undefined;
       if (!row) break;
       result.push(rowToMemory(row));
       currentId = row.parent_id;

@@ -32,14 +32,23 @@ describe('createStore', () => {
     });
 
     it('accepts explicit strength', () => {
-      const result = store.insert({ content: 'hello', type: 'fact', strength: 0.8 });
+      const result = store.insert({
+        content: 'hello',
+        type: 'fact',
+        strength: 0.8,
+      });
       const mem = store.get(result.id);
       expect(mem?.strength).toBe(0.8);
     });
 
     it('stores parentId', () => {
       const parent = store.insert({ content: 'parent', type: 'fact' });
-      const child = store.insert({ content: 'child', type: 'fact', parentId: parent.id, version: 2 });
+      const child = store.insert({
+        content: 'child',
+        type: 'fact',
+        parentId: parent.id,
+        version: 2,
+      });
       expect(child.parentId).toBe(parent.id);
       expect(child.version).toBe(2);
     });
@@ -122,7 +131,9 @@ describe('createStore', () => {
       store.forget(id);
       // memory is gone, so use saved rowid to check FTS
       if (rowBefore) {
-        const ftsRow = db.prepare('SELECT rowid FROM memories_fts WHERE rowid = ?').get(rowBefore.rowid);
+        const ftsRow = db
+          .prepare('SELECT rowid FROM memories_fts WHERE rowid = ?')
+          .get(rowBefore.rowid);
         expect(ftsRow).toBeUndefined();
       }
     });
@@ -138,7 +149,12 @@ describe('createStore', () => {
 
     it('walks parent chain for versioned memories', () => {
       const v1 = store.insert({ content: 'v1 content', type: 'fact' });
-      const v2 = store.insert({ content: 'v2 content', type: 'fact', parentId: v1.id, version: 2 });
+      const v2 = store.insert({
+        content: 'v2 content',
+        type: 'fact',
+        parentId: v1.id,
+        version: 2,
+      });
       const hist = store.history(v2.id);
       expect(hist).toHaveLength(2);
       expect(hist[0]?.content).toBe('v2 content');

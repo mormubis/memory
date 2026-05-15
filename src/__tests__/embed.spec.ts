@@ -28,7 +28,7 @@ describe('createEmbedder', () => {
       const restored = embedder.fromBlob(blob);
       expect(restored).toHaveLength(original.length);
       for (let i = 0; i < original.length; i++) {
-        expect(restored[i]).toBeCloseTo(original[i]!, 5);
+        expect(restored[i]).toBeCloseTo(original[i] ?? 0, 5);
       }
     });
 

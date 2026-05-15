@@ -12,8 +12,12 @@ function createEmbedder(customEmbed: EmbedFunction | null): Embedder {
       return customEmbed(text);
     }
     // Lazy-load the default model
-    const { pipeline } = await import('@xenova/transformers');
-    const extractor = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { pipeline } = await import('@xenova/transformers' as any) as any;
+    const extractor = await pipeline(
+      'feature-extraction',
+      'Xenova/all-MiniLM-L6-v2',
+    );
     const output = await extractor(text, { normalize: true, pooling: 'mean' });
     return Array.from(output.data as Float32Array);
   }
@@ -24,7 +28,11 @@ function createEmbedder(customEmbed: EmbedFunction | null): Embedder {
   }
 
   function fromBlob(blob: Buffer): number[] {
-    const float32 = new Float32Array(blob.buffer, blob.byteOffset, blob.byteLength / 4);
+    const float32 = new Float32Array(
+      blob.buffer,
+      blob.byteOffset,
+      blob.byteLength / 4,
+    );
     return Array.from(float32);
   }
 

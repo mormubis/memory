@@ -22,11 +22,17 @@ function cosineSimilarity(a: number[], b: number[]): number {
     normB += bi * bi;
   }
   const denom = Math.sqrt(normA) * Math.sqrt(normB);
-  if (denom === 0) { return 0; }
+  if (denom === 0) {
+    return 0;
+  }
   return dot / denom;
 }
 
-function findSimilar(queryEmbedding: number[], candidates: VersionCandidate[], threshold: number): SimilarMatch | null {
+function findSimilar(
+  queryEmbedding: number[],
+  candidates: VersionCandidate[],
+  threshold: number,
+): SimilarMatch | null {
   let best: SimilarMatch | null = null;
   for (const candidate of candidates) {
     const similarity = cosineSimilarity(queryEmbedding, candidate.embedding);

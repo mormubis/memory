@@ -31,7 +31,9 @@ async function insertWithVector(
   const result = store.insert(input);
   const vector = await embedder.embed(input.content);
   const blob = embedder.toBlob(vector);
-  db.prepare('INSERT INTO memory_vectors (memory_id, embedding) VALUES (?, ?)').run(result.id, blob);
+  db.prepare(
+    'INSERT INTO memory_vectors (memory_id, embedding) VALUES (?, ?)',
+  ).run(result.id, blob);
   return result;
 }
 
@@ -54,8 +56,14 @@ describe('createSearch', () => {
 
   describe('search', () => {
     it('returns BM25 matches for relevant content', async () => {
-      await insertWithVector(store, embedder, db, { content: 'the quick brown fox', type: 'fact' });
-      await insertWithVector(store, embedder, db, { content: 'completely unrelated text about cats', type: 'fact' });
+      await insertWithVector(store, embedder, db, {
+        content: 'the quick brown fox',
+        type: 'fact',
+      });
+      await insertWithVector(store, embedder, db, {
+        content: 'completely unrelated text about cats',
+        type: 'fact',
+      });
 
       const results = await searcher.search('fox');
       expect(results.length).toBeGreaterThan(0);
@@ -63,24 +71,42 @@ describe('createSearch', () => {
     });
 
     it('filters results by type', async () => {
-      await insertWithVector(store, embedder, db, { content: 'the quick brown fox', type: 'fact' });
-      await insertWithVector(store, embedder, db, { content: 'the quick brown fox jumps', type: 'event' });
+      await insertWithVector(store, embedder, db, {
+        content: 'the quick brown fox',
+        type: 'fact',
+      });
+      await insertWithVector(store, embedder, db, {
+        content: 'the quick brown fox jumps',
+        type: 'event',
+      });
 
       const results = await searcher.search('fox', { type: 'fact' });
       expect(results.every((r) => r.memory.type === 'fact')).toBe(true);
     });
 
     it('respects the limit option', async () => {
-      await insertWithVector(store, embedder, db, { content: 'memory about dogs', type: 'fact' });
-      await insertWithVector(store, embedder, db, { content: 'memory about cats', type: 'fact' });
-      await insertWithVector(store, embedder, db, { content: 'memory about birds', type: 'fact' });
+      await insertWithVector(store, embedder, db, {
+        content: 'memory about dogs',
+        type: 'fact',
+      });
+      await insertWithVector(store, embedder, db, {
+        content: 'memory about cats',
+        type: 'fact',
+      });
+      await insertWithVector(store, embedder, db, {
+        content: 'memory about birds',
+        type: 'fact',
+      });
 
       const results = await searcher.search('memory', { limit: 2 });
       expect(results.length).toBeLessThanOrEqual(2);
     });
 
     it('excludes non-current memories', async () => {
-      const result = await insertWithVector(store, embedder, db, { content: 'the quick brown fox', type: 'fact' });
+      const result = await insertWithVector(store, embedder, db, {
+        content: 'the quick brown fox',
+        type: 'fact',
+      });
       // Mark as non-current
       db.prepare('UPDATE memories SET current = 0 WHERE id = ?').run(result.id);
 
@@ -89,7 +115,10 @@ describe('createSearch', () => {
     });
 
     it('returns scores for results', async () => {
-      await insertWithVector(store, embedder, db, { content: 'hello world', type: 'fact' });
+      await insertWithVector(store, embedder, db, {
+        content: 'hello world',
+        type: 'fact',
+      });
 
       const results = await searcher.search('hello');
       if (results.length > 0) {

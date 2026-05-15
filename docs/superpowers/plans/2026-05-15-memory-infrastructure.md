@@ -1,12 +1,22 @@
 # Memory Infrastructure Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use
+> superpowers:subagent-driven-development (recommended) or
+> superpowers:executing-plans to implement this plan task-by-task. Steps use
+> checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build a TypeScript library that provides memory infrastructure — store, version, search, link, and decay knowledge over time.
+**Goal:** Build a TypeScript library that provides memory infrastructure —
+store, version, search, link, and decay knowledge over time.
 
-**Architecture:** Single SQLite file with FTS5 for full-text search and sqlite-vec for vector similarity. One unified store for all memories. Lazy Ebbinghaus decay, content-similarity-based versioning, typed directional links with weight decay, hybrid BM25 + vector search with RRF fusion and link expansion.
+**Architecture:** Single SQLite file with FTS5 for full-text search and
+sqlite-vec for vector similarity. One unified store for all memories. Lazy
+Ebbinghaus decay, content-similarity-based versioning, typed directional links
+with weight decay, hybrid BM25 + vector search with RRF fusion and link
+expansion.
 
-**Tech Stack:** TypeScript (ESM, strict), SQLite via `better-sqlite3`, `sqlite-vec` extension, `@xenova/transformers` for default embeddings, vitest for testing, tsdown for building, pnpm as package manager.
+**Tech Stack:** TypeScript (ESM, strict), SQLite via `better-sqlite3`,
+`sqlite-vec` extension, `@xenova/transformers` for default embeddings, vitest
+for testing, tsdown for building, pnpm as package manager.
 
 **Spec:** `docs/superpowers/specs/2026-05-15-memory-infrastructure-design.md`
 
@@ -53,6 +63,7 @@ memory/
 ### Task 1: Project scaffolding
 
 **Files:**
+
 - Create: `package.json`
 - Create: `tsconfig.json`
 - Create: `tsdown.config.ts`
@@ -222,13 +233,11 @@ export {};
 
 - [ ] **Step 9: Install dependencies**
 
-Run: `pnpm install`
-Expected: lockfile created, node_modules populated
+Run: `pnpm install` Expected: lockfile created, node_modules populated
 
 - [ ] **Step 10: Verify build works**
 
-Run: `pnpm build`
-Expected: `dist/index.js` and `dist/index.d.ts` created
+Run: `pnpm build` Expected: `dist/index.js` and `dist/index.d.ts` created
 
 - [ ] **Step 11: Commit**
 
@@ -242,6 +251,7 @@ git commit -m "scaffold project: package.json, tsconfig, tsdown, vitest, eslint,
 ### Task 2: Types and config
 
 **Files:**
+
 - Create: `src/types.ts`
 - Create: `src/config.ts`
 - Create: `src/id.ts`
@@ -476,8 +486,7 @@ describe('resolveConfig', () => {
 
 - [ ] **Step 6: Run test to verify it passes**
 
-Run: `pnpm test -- src/__tests__/config.spec.ts`
-Expected: all 5 tests PASS
+Run: `pnpm test -- src/__tests__/config.spec.ts` Expected: all 5 tests PASS
 
 - [ ] **Step 7: Commit**
 
@@ -491,6 +500,7 @@ git commit -m "add types, config, clock, and id utilities"
 ### Task 3: Decay math
 
 **Files:**
+
 - Create: `src/decay.ts`
 - Test: `src/__tests__/decay.spec.ts`
 
@@ -548,8 +558,8 @@ describe('reinforce', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm test -- src/__tests__/decay.spec.ts`
-Expected: FAIL — module not found
+Run: `pnpm test -- src/__tests__/decay.spec.ts` Expected: FAIL — module not
+found
 
 - [ ] **Step 3: Implement decay.ts**
 
@@ -577,8 +587,7 @@ export { daysBetween, effectiveStrength, reinforce };
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pnpm test -- src/__tests__/decay.spec.ts`
-Expected: all 9 tests PASS
+Run: `pnpm test -- src/__tests__/decay.spec.ts` Expected: all 9 tests PASS
 
 - [ ] **Step 5: Commit**
 
@@ -592,6 +601,7 @@ git commit -m "add decay math: effectiveStrength, reinforce, daysBetween"
 ### Task 4: SQLite schema and database setup
 
 **Files:**
+
 - Create: `src/db.ts`
 - Test: `src/__tests__/db.spec.ts`
 
@@ -659,9 +669,7 @@ describe('createSchema', () => {
     createSchema(db);
     createSchema(db);
     const count = db
-      .prepare(
-        "SELECT count(*) as c FROM sqlite_master WHERE name='memories'",
-      )
+      .prepare("SELECT count(*) as c FROM sqlite_master WHERE name='memories'")
       .get() as { c: number };
     expect(count.c).toBe(1);
     db.close();
@@ -671,8 +679,7 @@ describe('createSchema', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm test -- src/__tests__/db.spec.ts`
-Expected: FAIL — module not found
+Run: `pnpm test -- src/__tests__/db.spec.ts` Expected: FAIL — module not found
 
 - [ ] **Step 3: Implement db.ts**
 
@@ -742,12 +749,13 @@ function createSchema(db: Database.Database): void {
 export { createSchema };
 ```
 
-Note: the FTS5 table uses a separate content approach. We will sync it manually on insert/delete. The `content_rowid` mapping will be refined when we implement the store — for now the schema just needs to exist.
+Note: the FTS5 table uses a separate content approach. We will sync it manually
+on insert/delete. The `content_rowid` mapping will be refined when we implement
+the store — for now the schema just needs to exist.
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pnpm test -- src/__tests__/db.spec.ts`
-Expected: all 5 tests PASS
+Run: `pnpm test -- src/__tests__/db.spec.ts` Expected: all 5 tests PASS
 
 - [ ] **Step 5: Commit**
 
@@ -761,6 +769,7 @@ git commit -m "add SQLite schema: memories, memory_vectors, memory_links, memori
 ### Task 5: Core store — remember, get, list, forget, history
 
 **Files:**
+
 - Create: `src/store.ts`
 - Test: `src/__tests__/store.spec.ts`
 
@@ -882,7 +891,9 @@ describe('forget', () => {
     const { id } = store.insert({ content: 'indexed content', type: 'fact' });
     store.forget(id);
     const ftsCount = db
-      .prepare("SELECT count(*) as c FROM memories_fts WHERE content MATCH 'indexed'")
+      .prepare(
+        "SELECT count(*) as c FROM memories_fts WHERE content MATCH 'indexed'",
+      )
       .get() as { c: number };
     expect(ftsCount.c).toBe(0);
   });
@@ -909,8 +920,8 @@ describe('history', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm test -- src/__tests__/store.spec.ts`
-Expected: FAIL — module not found
+Run: `pnpm test -- src/__tests__/store.spec.ts` Expected: FAIL — module not
+found
 
 - [ ] **Step 3: Implement store.ts**
 
@@ -999,7 +1010,16 @@ function createStore(db: Database.Database, config: ResolvedConfig): Store {
     const version = input.version ?? 1;
     const parentId = input.parentId ?? null;
 
-    insertStmt.run(id, input.type, input.content, strength, version, parentId, now, now);
+    insertStmt.run(
+      id,
+      input.type,
+      input.content,
+      strength,
+      version,
+      parentId,
+      now,
+      now,
+    );
     insertFtsStmt.run(id, input.content);
 
     return { id, parentId, version };
@@ -1079,8 +1099,7 @@ export type { InsertInput, Store };
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pnpm test -- src/__tests__/store.spec.ts`
-Expected: all tests PASS
+Run: `pnpm test -- src/__tests__/store.spec.ts` Expected: all tests PASS
 
 - [ ] **Step 5: Commit**
 
@@ -1094,6 +1113,7 @@ git commit -m "add core store: insert, get, list, forget, history"
 ### Task 6: Versioning — similarity detection and version chain
 
 **Files:**
+
 - Create: `src/versioning.ts`
 - Test: `src/__tests__/versioning.spec.ts`
 
@@ -1156,8 +1176,8 @@ describe('findSimilar', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm test -- src/__tests__/versioning.spec.ts`
-Expected: FAIL — module not found
+Run: `pnpm test -- src/__tests__/versioning.spec.ts` Expected: FAIL — module not
+found
 
 - [ ] **Step 3: Implement versioning.ts**
 
@@ -1224,8 +1244,7 @@ export type { SimilarMatch, VersionCandidate };
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pnpm test -- src/__tests__/versioning.spec.ts`
-Expected: all tests PASS
+Run: `pnpm test -- src/__tests__/versioning.spec.ts` Expected: all tests PASS
 
 - [ ] **Step 5: Commit**
 
@@ -1239,6 +1258,7 @@ git commit -m "add versioning: cosineSimilarity, findSimilar"
 ### Task 7: Links — link, unlink, related
 
 **Files:**
+
 - Create: `src/links.ts`
 - Test: `src/__tests__/links.spec.ts`
 
@@ -1346,8 +1366,8 @@ describe('related', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm test -- src/__tests__/links.spec.ts`
-Expected: FAIL — module not found
+Run: `pnpm test -- src/__tests__/links.spec.ts` Expected: FAIL — module not
+found
 
 - [ ] **Step 3: Implement links.ts**
 
@@ -1415,11 +1435,7 @@ function createLinks(db: Database.Database, config: ResolvedConfig): Links {
     upsertStmt.run(sourceId, targetId, relation, weight, now, now);
   }
 
-  function unlink(
-    sourceId: string,
-    targetId: string,
-    relation?: string,
-  ): void {
+  function unlink(sourceId: string, targetId: string, relation?: string): void {
     if (relation) {
       unlinkSpecificStmt.run(sourceId, targetId, relation);
     } else {
@@ -1456,8 +1472,7 @@ export type { Links };
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pnpm test -- src/__tests__/links.spec.ts`
-Expected: all tests PASS
+Run: `pnpm test -- src/__tests__/links.spec.ts` Expected: all tests PASS
 
 - [ ] **Step 5: Commit**
 
@@ -1471,6 +1486,7 @@ git commit -m "add links: link, unlink, related"
 ### Task 8: Embedding — default model and custom override
 
 **Files:**
+
 - Create: `src/embed.ts`
 - Test: `src/__tests__/embed.spec.ts`
 
@@ -1506,8 +1522,8 @@ describe('createEmbedder', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm test -- src/__tests__/embed.spec.ts`
-Expected: FAIL — module not found
+Run: `pnpm test -- src/__tests__/embed.spec.ts` Expected: FAIL — module not
+found
 
 - [ ] **Step 3: Implement embed.ts**
 
@@ -1564,10 +1580,12 @@ export type { Embedder };
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pnpm test -- src/__tests__/embed.spec.ts`
-Expected: all tests PASS (custom embed and blob round-trip)
+Run: `pnpm test -- src/__tests__/embed.spec.ts` Expected: all tests PASS (custom
+embed and blob round-trip)
 
-Note: the default `@xenova/transformers` model test is not included here — it requires downloading a model. It will be covered in the integration test (Task 10). Add `@xenova/transformers` to dependencies:
+Note: the default `@xenova/transformers` model test is not included here — it
+requires downloading a model. It will be covered in the integration test (Task
+10). Add `@xenova/transformers` to dependencies:
 
 Run: `pnpm add @xenova/transformers`
 
@@ -1583,6 +1601,7 @@ git commit -m "add embedding: createEmbedder with custom override and blob seria
 ### Task 9: Search — BM25 + vector + RRF fusion + link expansion
 
 **Files:**
+
 - Create: `src/search.ts`
 - Test: `src/__tests__/search.spec.ts`
 
@@ -1636,10 +1655,9 @@ async function insertWithVector(
   const result = store.insert(input);
   const vector = await embedder.embed(input.content);
   const blob = embedder.toBlob(vector);
-  db.prepare('INSERT INTO memory_vectors (memory_id, embedding) VALUES (?, ?)').run(
-    result.id,
-    blob,
-  );
+  db.prepare(
+    'INSERT INTO memory_vectors (memory_id, embedding) VALUES (?, ?)',
+  ).run(result.id, blob);
   return result;
 }
 
@@ -1700,8 +1718,8 @@ describe('search', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm test -- src/__tests__/search.spec.ts`
-Expected: FAIL — module not found
+Run: `pnpm test -- src/__tests__/search.spec.ts` Expected: FAIL — module not
+found
 
 - [ ] **Step 3: Implement search.ts**
 
@@ -1817,10 +1835,7 @@ function createSearch(
     return scores;
   }
 
-  function expandLinks(
-    ids: string[],
-    hops: number,
-  ): Map<string, number> {
+  function expandLinks(ids: string[], hops: number): Map<string, number> {
     const expanded = new Map<string, number>();
     const now = config.clock();
 
@@ -1838,8 +1853,7 @@ function createSearch(
           continue;
         }
 
-        const linkedId =
-          link.sourceId === id ? link.targetId : link.sourceId;
+        const linkedId = link.sourceId === id ? link.targetId : link.sourceId;
 
         if (!ids.includes(linkedId)) {
           const existing = expanded.get(linkedId) ?? 0;
@@ -1945,8 +1959,7 @@ export type { Search };
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pnpm test -- src/__tests__/search.spec.ts`
-Expected: all tests PASS
+Run: `pnpm test -- src/__tests__/search.spec.ts` Expected: all tests PASS
 
 - [ ] **Step 5: Commit**
 
@@ -1960,6 +1973,7 @@ git commit -m "add search: BM25 + vector + RRF fusion + link expansion"
 ### Task 10: Public API — createMemory and remember with auto-versioning
 
 **Files:**
+
 - Modify: `src/index.ts`
 - Test: `src/__tests__/integration.spec.ts`
 
@@ -2034,7 +2048,10 @@ describe('remember', () => {
   it('creates standalone memory when content is different', async () => {
     const { memory } = setup();
     await memory.remember('fact', 'auth uses JWT tokens');
-    const result = await memory.remember('fact', 'database is PostgreSQL on RDS');
+    const result = await memory.remember(
+      'fact',
+      'database is PostgreSQL on RDS',
+    );
     expect(result.version).toBe(1);
     expect(result.parentId).toBeNull();
   });
@@ -2119,8 +2136,8 @@ describe('forget', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm test -- src/__tests__/integration.spec.ts`
-Expected: FAIL — createMemory not found
+Run: `pnpm test -- src/__tests__/integration.spec.ts` Expected: FAIL —
+createMemory not found
 
 - [ ] **Step 3: Implement the public API in src/index.ts**
 
@@ -2187,7 +2204,9 @@ function createMemory(input?: MemoryConfig): MemoryInstance {
 
     // Check for similar existing memories
     const currentMemories = db
-      .prepare('SELECT m.id, m.version, v.embedding FROM memories m JOIN memory_vectors v ON v.memory_id = m.id WHERE m.current = 1')
+      .prepare(
+        'SELECT m.id, m.version, v.embedding FROM memories m JOIN memory_vectors v ON v.memory_id = m.id WHERE m.current = 1',
+      )
       .all() as { embedding: Buffer; id: string; version: number }[];
 
     const candidates = currentMemories.map((row) => ({
@@ -2322,18 +2341,15 @@ export type { MemoryConfig } from './config.js';
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pnpm test -- src/__tests__/integration.spec.ts`
-Expected: all tests PASS
+Run: `pnpm test -- src/__tests__/integration.spec.ts` Expected: all tests PASS
 
 - [ ] **Step 5: Run full test suite**
 
-Run: `pnpm test`
-Expected: all tests across all files PASS
+Run: `pnpm test` Expected: all tests across all files PASS
 
 - [ ] **Step 6: Run build**
 
-Run: `pnpm build`
-Expected: `dist/` generated with no errors
+Run: `pnpm build` Expected: `dist/` generated with no errors
 
 - [ ] **Step 7: Commit**
 
@@ -2347,6 +2363,7 @@ git commit -m "add public API: createMemory with auto-versioning, decay, search,
 ### Task 11: Lint, format, and final verification
 
 **Files:**
+
 - Possibly modify: any file with lint issues
 
 - [ ] **Step 1: Run formatter**
@@ -2355,18 +2372,15 @@ Run: `pnpm format`
 
 - [ ] **Step 2: Run linter**
 
-Run: `pnpm lint`
-Fix any issues that come up.
+Run: `pnpm lint` Fix any issues that come up.
 
 - [ ] **Step 3: Run full test suite**
 
-Run: `pnpm test`
-Expected: all tests PASS
+Run: `pnpm test` Expected: all tests PASS
 
 - [ ] **Step 4: Run build**
 
-Run: `pnpm build`
-Expected: clean build
+Run: `pnpm build` Expected: clean build
 
 - [ ] **Step 5: Commit any fixes**
 
@@ -2377,5 +2391,5 @@ git commit -m "fix lint and formatting issues"
 
 - [ ] **Step 6: Final verification**
 
-Run: `pnpm lint:ci && pnpm test && pnpm build`
-Expected: all three pass with zero warnings
+Run: `pnpm lint:ci && pnpm test && pnpm build` Expected: all three pass with
+zero warnings

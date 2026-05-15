@@ -18,9 +18,15 @@ function createSchema(db: Database.Database): void {
     )
   `);
 
-  db.exec('CREATE INDEX IF NOT EXISTS idx_memories_current ON memories (current)');
-  db.exec('CREATE INDEX IF NOT EXISTS idx_memories_type_current ON memories (type, current)');
-  db.exec('CREATE INDEX IF NOT EXISTS idx_memories_parent_id ON memories (parent_id)');
+  db.exec(
+    'CREATE INDEX IF NOT EXISTS idx_memories_current ON memories (current)',
+  );
+  db.exec(
+    'CREATE INDEX IF NOT EXISTS idx_memories_type_current ON memories (type, current)',
+  );
+  db.exec(
+    'CREATE INDEX IF NOT EXISTS idx_memories_parent_id ON memories (parent_id)',
+  );
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS memory_vectors (

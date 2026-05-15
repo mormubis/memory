@@ -18,7 +18,10 @@ async function fakeEmbed(text: string): Promise<number[]> {
  * accidentally creates versions for unrelated content (fakeEmbed produces
  * high cosine similarity for all text since it's character-frequency based).
  */
-function setup(similarityThreshold = 1.0): { advance: (days: number) => void; memory: MemoryInstance } {
+function setup(similarityThreshold = 1.0): {
+  advance: (days: number) => void;
+  memory: MemoryInstance;
+} {
   let now = new Date('2026-01-01T00:00:00Z');
   const memory = createMemory({
     clock: () => now,
@@ -70,7 +73,10 @@ describe('createMemory', () => {
     it('creates standalone memory when content is different', async () => {
       const { memory } = setup();
       const r1 = await memory.remember('fact', 'the sky is blue');
-      const r2 = await memory.remember('fact', 'elephants are large mammals with trunks and big ears');
+      const r2 = await memory.remember(
+        'fact',
+        'elephants are large mammals with trunks and big ears',
+      );
 
       expect(r2.parentId).toBeNull();
       expect(r2.id).not.toBe(r1.id);

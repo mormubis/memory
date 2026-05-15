@@ -23,17 +23,18 @@ one SQLite file, zero opinions about what you build on top.
 ## What the library owns
 
 - **Single unified store** — one table for all memories, regardless of type or
-  maturity. Raw observations and distilled facts live in the same store.
-  The difference is strength, not structure.
+  maturity. Raw observations and distilled facts live in the same store. The
+  difference is strength, not structure.
 - **Versioning** — content-similarity-based. On insert, the library compares the
   new content against existing current memories via vector similarity. Above a
   threshold, the new record becomes a new version of the matched memory. Below,
   it's a standalone record.
-- **Typed directional links with weights** — `(sourceId, targetId, relation,
-  weight)`. Relation is an opaque string. Weight decays lazily and is reinforced
-  on traversal.
-- **Embedding generation** — the library generates embeddings and stores vectors.
-  Ships a default local model, allows overriding with a custom embed function.
+- **Typed directional links with weights** —
+  `(sourceId, targetId, relation, weight)`. Relation is an opaque string. Weight
+  decays lazily and is reinforced on traversal.
+- **Embedding generation** — the library generates embeddings and stores
+  vectors. Ships a default local model, allows overriding with a custom embed
+  function.
 - **Hybrid search** — BM25 full-text (FTS5) + vector similarity + link
   expansion, fused with reciprocal rank fusion (RRF).
 - **Lazy strength decay** — Ebbinghaus-inspired. Computed on read, not stored
@@ -49,8 +50,8 @@ one SQLite file, zero opinions about what you build on top.
 - **Link relation vocabulary** — opaque strings. The wrapper defines the
   relations (involves, supersedes, part_of, etc.).
 - **Consolidation logic** — when and how to promote weak memories into stronger
-  ones. The library doesn't know what consolidation means. The wrapper reads weak
-  memories, processes them however it wants (LLM summarization, pattern
+  ones. The library doesn't know what consolidation means. The wrapper reads
+  weak memories, processes them however it wants (LLM summarization, pattern
   extraction, nothing at all), and inserts the results as stronger memories.
 - **Transport layer** — MCP, REST, hooks, CLI, whatever. The library is a
   TypeScript import, not a server.
@@ -74,47 +75,48 @@ separate stores.
 
 ### `memories` table
 
-| Column    | Type                       | Description                              |
-| --------- | -------------------------- | ---------------------------------------- |
-| id        | TEXT PK                    | Auto-generated unique ID                 |
-| type      | TEXT NOT NULL               | Opaque string, wrapper-defined           |
-| content   | TEXT NOT NULL               | The knowledge — prose, structured, whatever |
-| strength  | REAL NOT NULL DEFAULT 0.5  | 0-1, decays over time                   |
-| version   | INTEGER NOT NULL DEFAULT 1 | Monotonically increasing per chain       |
-| parent_id | TEXT                       | Points to previous version's id          |
-| current   | INTEGER NOT NULL DEFAULT 1 | 1 for the head of the version chain      |
-| created   | TEXT NOT NULL               | ISO timestamp                            |
-| updated   | TEXT NOT NULL               | ISO timestamp                            |
+| Column    | Type                       | Description                                 |
+| --------- | -------------------------- | ------------------------------------------- |
+| id        | TEXT PK                    | Auto-generated unique ID                    |
+| type      | TEXT NOT NULL              | Opaque string, wrapper-defined              |
+| content   | TEXT NOT NULL              | The knowledge — prose, structured, whatever |
+| strength  | REAL NOT NULL DEFAULT 0.5  | 0-1, decays over time                       |
+| version   | INTEGER NOT NULL DEFAULT 1 | Monotonically increasing per chain          |
+| parent_id | TEXT                       | Points to previous version's id             |
+| current   | INTEGER NOT NULL DEFAULT 1 | 1 for the head of the version chain         |
+| created   | TEXT NOT NULL              | ISO timestamp                               |
+| updated   | TEXT NOT NULL              | ISO timestamp                               |
 
 Indexes:
+
 - `(current)` — fast filtering to current versions
 - `(type, current)` — fast type-scoped queries
 - `(parent_id)` — chain traversal
 
 ### `memory_vectors` table
 
-| Column    | Type    | Description                |
-| --------- | ------- | -------------------------- |
-| memory_id | TEXT PK | References memories.id     |
-| embedding | BLOB    | Float32 vector             |
+| Column    | Type    | Description            |
+| --------- | ------- | ---------------------- |
+| memory_id | TEXT PK | References memories.id |
+| embedding | BLOB    | Float32 vector         |
 
 ### `memory_links` table
 
-| Column    | Type          | Description                     |
-| --------- | ------------- | ------------------------------- |
-| source_id | TEXT NOT NULL  | Memory ID                       |
-| target_id | TEXT NOT NULL  | Memory ID                       |
-| relation  | TEXT NOT NULL  | Opaque string, wrapper-defined  |
+| Column    | Type                      | Description                            |
+| --------- | ------------------------- | -------------------------------------- |
+| source_id | TEXT NOT NULL             | Memory ID                              |
+| target_id | TEXT NOT NULL             | Memory ID                              |
+| relation  | TEXT NOT NULL             | Opaque string, wrapper-defined         |
 | weight    | REAL NOT NULL DEFAULT 1.0 | Decays lazily, reinforced on traversal |
-| created   | TEXT NOT NULL  | ISO timestamp                   |
-| updated   | TEXT NOT NULL  | ISO timestamp                   |
+| created   | TEXT NOT NULL             | ISO timestamp                          |
+| updated   | TEXT NOT NULL             | ISO timestamp                          |
 
 Primary key: `(source_id, target_id, relation)`.
 
 ### FTS index
 
-FTS5 virtual table over `memories.content`. Used for BM25 full-text search.
-Kept in sync with inserts and updates to the memories table.
+FTS5 virtual table over `memories.content`. Used for BM25 full-text search. Kept
+in sync with inserts and updates to the memories table.
 
 ## Versioning
 
@@ -149,9 +151,8 @@ The wrapper defines the relation vocabulary.
 the edge already exists (same source, target, relation), the weight is updated.
 
 Link weights decay lazily (same Ebbinghaus formula as memory strength). When a
-link is traversed during search (link expansion), its weight is reinforced.
-When weight drops below the eviction threshold, the link is ignored during
-expansion.
+link is traversed during search (link expansion), its weight is reinforced. When
+weight drops below the eviction threshold, the link is ignored during expansion.
 
 `unlink(sourceId, targetId, relation?)` — hard delete a link. Intended for
 debugging and governance, not normal operation. Normal link removal is via
@@ -159,8 +160,8 @@ weight decay.
 
 ### Link expansion
 
-After the initial search results (BM25 + vector), the library expands 1 hop
-via links:
+After the initial search results (BM25 + vector), the library expands 1 hop via
+links:
 
 1. For each result, query `memory_links` for all linked memories (both
    directions).
@@ -180,8 +181,9 @@ Standard BM25 ranking.
 
 ### Vector similarity
 
-Cosine similarity over embeddings in `memory_vectors`. Filtered to `current = 1`.
-The library embeds the query using the same model used for storage.
+Cosine similarity over embeddings in `memory_vectors`. Filtered to
+`current = 1`. The library embeds the query using the same model used for
+storage.
 
 ### Fusion
 
@@ -235,6 +237,7 @@ effective_strength = strength * decay_rate ^ days_since
 Default `decay_rate = 0.95` (loses ~5% per day). Configurable.
 
 The stored value is only written back when something meaningful happens:
+
 - **Reinforcement** — the memory appears in search results or is accessed via
   `get`. `strength = min(1.0, effective_strength + boost)`. Default
   `boost = 0.1`.
@@ -253,9 +256,9 @@ Guidance for wrappers:
 
 | Wrapper-defined type   | Suggested initial strength |
 | ---------------------- | -------------------------- |
-| Raw observation        | 0.2 - 0.3                 |
-| Session summary        | 0.5 - 0.6                 |
-| Distilled fact         | 0.7 - 0.8                 |
+| Raw observation        | 0.2 - 0.3                  |
+| Session summary        | 0.5 - 0.6                  |
+| Distilled fact         | 0.7 - 0.8                  |
 | Architectural decision | 0.9                        |
 
 ### Link decay
@@ -274,6 +277,7 @@ Reinforcement happens when the link is traversed during search. Dead links
 ### Write
 
 **`remember(type, content, strength?)`** — insert a memory. The library:
+
 1. Generates an embedding.
 2. Checks for similar existing current memories (vector similarity).
 3. Creates a new version or standalone record.
@@ -283,8 +287,8 @@ Reinforcement happens when the link is traversed during search. Dead links
 **`link(sourceId, targetId, relation, weight?)`** — create or reinforce a
 directional edge between two memories.
 
-**`unlink(sourceId, targetId, relation?)`** — hard delete a link. If relation
-is omitted, deletes all links between the two memories. Debugging/governance
+**`unlink(sourceId, targetId, relation?)`** — hard delete a link. If relation is
+omitted, deletes all links between the two memories. Debugging/governance
 primitive.
 
 ### Read
@@ -295,9 +299,9 @@ Options: `limit`, `type` filter, `minStrength`, search weights.
 **`get(id)`** — fetch a specific memory by ID, regardless of `current` status.
 Reinforces strength on access only if the memory is `current = 1`.
 
-**`related(id, options?)`** — get all memories linked to a given memory. Options:
-`relation` filter, `minWeight`, `limit`. Returns linked memories ranked by
-effective weight.
+**`related(id, options?)`** — get all memories linked to a given memory.
+Options: `relation` filter, `minWeight`, `limit`. Returns linked memories ranked
+by effective weight.
 
 **`history(id)`** — walk the version chain backward via `parent_id`. Returns all
 versions from current to original, newest first.
@@ -352,27 +356,38 @@ implement it, similar to agentmemory's pipeline:
 
 ```typescript
 // 1. during a session, store raw observations (weak)
-await memory.remember("observation", "user modified auth.ts, added refresh tokens", 0.2);
-await memory.remember("observation", "user added test for token rotation", 0.2);
-await memory.remember("observation", "user updated openapi spec with refresh endpoint", 0.2);
+await memory.remember(
+  'observation',
+  'user modified auth.ts, added refresh tokens',
+  0.2,
+);
+await memory.remember('observation', 'user added test for token rotation', 0.2);
+await memory.remember(
+  'observation',
+  'user updated openapi spec with refresh endpoint',
+  0.2,
+);
 
 // 2. at session end, read weak memories
-const observations = await memory.list({ type: "observation", maxStrength: 0.3 });
+const observations = await memory.list({
+  type: 'observation',
+  maxStrength: 0.3,
+});
 
 // 3. feed to LLM for summarization (wrapper's responsibility)
-const summary = await llm.summarize(observations.map(m => m.content));
+const summary = await llm.summarize(observations.map((m) => m.content));
 
 // 4. store the summary as a stronger memory
 // the library may detect similarity to the raw observations and version one,
 // or create a standalone record — either way, the summary is stronger
-await memory.remember("summary", summary, 0.6);
+await memory.remember('summary', summary, 0.6);
 
 // 5. later, across multiple sessions, distill facts
-const summaries = await memory.list({ type: "summary" });
-const facts = await llm.extractFacts(summaries.map(m => m.content));
+const summaries = await memory.list({ type: 'summary' });
+const facts = await llm.extractFacts(summaries.map((m) => m.content));
 
 for (const fact of facts) {
-  await memory.remember("fact", fact, 0.8);
+  await memory.remember('fact', fact, 0.8);
 }
 
 // the raw observations will naturally decay and get evicted.
@@ -387,7 +402,8 @@ strengths and manages the lifecycle.
 
 The library uses a clock function internally for all time-dependent behavior
 (decay computation, timestamps on records). The clock is set once at creation
-time via config and never mutated. In production the default is `() => new Date()`.
+time via config and never mutated. In production the default is
+`() => new Date()`.
 
 For tests, pass a custom clock. To simulate time passing, the test controls the
 return value through its own variable:

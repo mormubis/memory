@@ -63,13 +63,15 @@ function resolveConfig(input?: MemoryConfig): ResolvedConfig {
     evictionThreshold: input?.evictionThreshold ?? DEFAULTS.evictionThreshold,
     linkExpansionHops: input?.linkExpansionHops ?? DEFAULTS.linkExpansionHops,
     path: input?.path ?? DEFAULTS.path,
-    reinforcementBoost: input?.reinforcementBoost ?? DEFAULTS.reinforcementBoost,
+    reinforcementBoost:
+      input?.reinforcementBoost ?? DEFAULTS.reinforcementBoost,
     rrfK: input?.rrfK ?? DEFAULTS.rrfK,
     searchWeights: {
       bm25: input?.searchWeights?.bm25 ?? DEFAULTS.searchWeights.bm25,
       vector: input?.searchWeights?.vector ?? DEFAULTS.searchWeights.vector,
     },
-    similarityThreshold: input?.similarityThreshold ?? DEFAULTS.similarityThreshold,
+    similarityThreshold:
+      input?.similarityThreshold ?? DEFAULTS.similarityThreshold,
   };
 }
 

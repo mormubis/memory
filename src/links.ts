@@ -24,21 +24,33 @@ function rowToLink(row: LinkRow): MemoryLink {
 }
 
 interface Links {
-  link: (sourceId: string, targetId: string, relation: string, weight?: number) => void;
+  link: (
+    sourceId: string,
+    targetId: string,
+    relation: string,
+    weight?: number,
+  ) => void;
   related: (id: string, options?: RelatedOptions) => MemoryLink[];
   unlink: (sourceId: string, targetId: string, relation?: string) => void;
 }
 
 function createLinks(db: Database.Database, config: ResolvedConfig): Links {
-  function link(sourceId: string, targetId: string, relation: string, weight = 1.0): void {
+  function link(
+    sourceId: string,
+    targetId: string,
+    relation: string,
+    weight = 1.0,
+  ): void {
     const now = config.clock().toISOString();
-    db.prepare(`
+    db.prepare(
+      `
       INSERT INTO memory_links (source_id, target_id, relation, weight, created, updated)
       VALUES (?, ?, ?, ?, ?, ?)
       ON CONFLICT (source_id, target_id, relation) DO UPDATE SET
         weight = excluded.weight,
         updated = excluded.updated
-    `).run(sourceId, targetId, relation, weight, now, now);
+    `,
+    ).run(sourceId, targetId, relation, weight, now, now);
   }
 
   function unlink(sourceId: string, targetId: string, relation?: string): void {

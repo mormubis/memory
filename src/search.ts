@@ -29,11 +29,15 @@ function createSearch(
   links: Links,
   embedder: Embedder,
 ): Search {
-  async function search(query: string, options?: SearchOptions): Promise<SearchResult[]> {
+  async function search(
+    query: string,
+    options?: SearchOptions,
+  ): Promise<SearchResult[]> {
     const limit = options?.limit ?? 10;
     const minStrength = options?.minStrength ?? 0;
     const bm25Weight = options?.weights?.bm25 ?? config.searchWeights.bm25;
-    const vectorWeight = options?.weights?.vector ?? config.searchWeights.vector;
+    const vectorWeight =
+      options?.weights?.vector ?? config.searchWeights.vector;
     const k = config.rrfK;
     const now = config.clock();
 
@@ -61,24 +65,21 @@ function createSearch(
 
     // Vector stream
     const queryEmbedding = await embedder.embed(query);
-    let vectorRows: VectorRow[] = [];
-    {
-      let vectorQuery = `SELECT mv.memory_id, mv.embedding FROM memory_vectors mv JOIN memories m ON m.id = mv.memory_id WHERE m.current = 1`;
-      const vectorParams: unknown[] = [];
+    let vectorQuery = `SELECT mv.memory_id, mv.embedding FROM memory_vectors mv JOIN memories m ON m.id = mv.memory_id WHERE m.current = 1`;
+    const vectorParams: unknown[] = [];
 
-      if (options?.type !== undefined) {
-        vectorQuery += ' AND m.type = ?';
-        vectorParams.push(options.type);
-      }
-
-      if (vectorParams.length > 0) {
-        vectorRows = db.prepare(vectorQuery).all(...vectorParams) as VectorRow[];
-      } else {
-        vectorRows = db.prepare(vectorQuery).all() as VectorRow[];
-      }
+    if (options?.type !== undefined) {
+      vectorQuery += ' AND m.type = ?';
+      vectorParams.push(options.type);
     }
 
-    const vectorScored: Array<{ id: string; similarity: number }> = [];
+    const vectorRows = (
+      vectorParams.length > 0
+        ? db.prepare(vectorQuery).all(...vectorParams)
+        : db.prepare(vectorQuery).all()
+    ) as VectorRow[];
+
+    const vectorScored: { id: string; similarity: number }[] = [];
     for (const row of vectorRows) {
       const vec = embedder.fromBlob(row.embedding);
       let dot = 0;
@@ -101,17 +102,15 @@ function createSearch(
     // RRF fusion
     const rrfScores = new Map<string, number>();
 
-    for (let i = 0; i < bm25Ids.length; i++) {
-      const id = bm25Ids[i]!;
+    bm25Ids.forEach((id, i) => {
       const prev = rrfScores.get(id) ?? 0;
       rrfScores.set(id, prev + bm25Weight * (1 / (k + i + 1)));
-    }
+    });
 
-    for (let i = 0; i < vectorIds.length; i++) {
-      const id = vectorIds[i]!;
+    vectorIds.forEach((id, i) => {
       const prev = rrfScores.get(id) ?? 0;
       rrfScores.set(id, prev + vectorWeight * (1 / (k + i + 1)));
-    }
+    });
 
     // Fetch memories, apply decay, filter, multiply by strength
     const primary: SearchResult[] = [];
@@ -121,7 +120,11 @@ function createSearch(
       if (!memory) continue;
 
       const days = daysBetween(new Date(memory.updated), now);
-      const effective = effectiveStrength(memory.strength, days, config.decayRate);
+      const effective = effectiveStrength(
+        memory.strength,
+        days,
+        config.decayRate,
+      );
 
       if (effective < config.evictionThreshold) continue;
       if (effective < minStrength) continue;
@@ -139,14 +142,19 @@ function createSearch(
     for (const result of primary) {
       const relatedLinks = links.related(result.memory.id);
       for (const link of relatedLinks) {
-        const linkedId = link.sourceId === result.memory.id ? link.targetId : link.sourceId;
+        const linkedId =
+          link.sourceId === result.memory.id ? link.targetId : link.sourceId;
         if (primaryIds.has(linkedId)) continue;
 
         const linkedMemory = store.get(linkedId);
         if (!linkedMemory || !linkedMemory.current) continue;
 
         const days = daysBetween(new Date(linkedMemory.updated), now);
-        const effective = effectiveStrength(linkedMemory.strength, days, config.decayRate);
+        const effective = effectiveStrength(
+          linkedMemory.strength,
+          days,
+          config.decayRate,
+        );
 
         if (effective < config.evictionThreshold) continue;
         if (effective < minStrength) continue;
