@@ -64,10 +64,11 @@ activation level (strength), not location. A raw observation starts weak and
 decays fast. If consolidated (reinforced, distilled), its strength increases and
 it becomes durable. If nobody consolidates it, it decays and gets evicted.
 
-This is consistent with agentmemory's 4-tier model (working, episodic, semantic,
-procedural) — the tiers can be represented as types within the unified store.
-The library doesn't enforce tiers; the wrapper can implement any tier model it
-wants using types and links.
+This differs from agentmemory's 4-tier model (working, episodic, semantic,
+procedural), which follows the multi-store approach with separate schemas and
+storage per tier. A wrapper that wants that model can implement tiers as types
+within the unified store, but the library itself does not enforce or assume
+separate stores.
 
 ## Schema
 
@@ -147,10 +148,14 @@ The wrapper defines the relation vocabulary.
 `link(sourceId, targetId, relation, weight)` — create or reinforce an edge. If
 the edge already exists (same source, target, relation), the weight is updated.
 
-No explicit unlink. Link weights decay lazily (same Ebbinghaus formula as memory
-strength). When a link is traversed during search (link expansion), its weight
-is reinforced. When weight drops below the eviction threshold, the link is
-ignored during expansion.
+Link weights decay lazily (same Ebbinghaus formula as memory strength). When a
+link is traversed during search (link expansion), its weight is reinforced.
+When weight drops below the eviction threshold, the link is ignored during
+expansion.
+
+`unlink(sourceId, targetId, relation?)` — hard delete a link. Intended for
+debugging and governance, not normal operation. Normal link removal is via
+weight decay.
 
 ### Link expansion
 
@@ -239,15 +244,19 @@ The stored value is only written back when something meaningful happens:
 
 ### Initial strength
 
-The caller provides initial strength on insert. The library doesn't dictate
-defaults per type (types are opaque). Typical wrapper patterns:
+The caller can provide initial strength on insert. If omitted, the library uses
+the configured `defaultStrength` (default `0.5`). The library doesn't dictate
+defaults per type (types are opaque) — the wrapper should configure
+`defaultStrength` or pass explicit values based on its type semantics.
 
-| Wrapper-defined type | Typical initial strength |
-| -------------------- | ----------------------- |
-| Raw observation      | 0.2 - 0.3              |
-| Session summary      | 0.5 - 0.6              |
-| Distilled fact       | 0.7 - 0.8              |
-| Architectural decision | 0.9                   |
+Guidance for wrappers:
+
+| Wrapper-defined type   | Suggested initial strength |
+| ---------------------- | -------------------------- |
+| Raw observation        | 0.2 - 0.3                 |
+| Session summary        | 0.5 - 0.6                 |
+| Distilled fact         | 0.7 - 0.8                 |
+| Architectural decision | 0.9                        |
 
 ### Link decay
 
@@ -273,6 +282,10 @@ Reinforcement happens when the link is traversed during search. Dead links
 
 **`link(sourceId, targetId, relation, weight?)`** — create or reinforce a
 directional edge between two memories.
+
+**`unlink(sourceId, targetId, relation?)`** — hard delete a link. If relation
+is omitted, deletes all links between the two memories. Debugging/governance
+primitive.
 
 ### Read
 
@@ -311,6 +324,9 @@ createMemory({
   // Versioning
   similarityThreshold: 0.85,        // Vector similarity threshold for versioning
 
+  // Strength
+  defaultStrength: 0.5,             // Default strength when not provided on insert
+
   // Decay
   decayRate: 0.95,                  // Daily decay multiplier
   reinforcementBoost: 0.1,          // Strength boost on access
@@ -325,6 +341,67 @@ createMemory({
   linkExpansionHops: 1,              // How many hops to expand during search
 })
 ```
+
+## Consolidation (wrapper example)
+
+The library doesn't know what consolidation means. Here's how a wrapper would
+implement it, similar to agentmemory's pipeline:
+
+```typescript
+// 1. during a session, store raw observations (weak)
+await memory.remember("observation", "user modified auth.ts, added refresh tokens", 0.2);
+await memory.remember("observation", "user added test for token rotation", 0.2);
+await memory.remember("observation", "user updated openapi spec with refresh endpoint", 0.2);
+
+// 2. at session end, read weak memories
+const observations = await memory.list({ type: "observation", maxStrength: 0.3 });
+
+// 3. feed to LLM for summarization (wrapper's responsibility)
+const summary = await llm.summarize(observations.map(m => m.content));
+
+// 4. store the summary as a stronger memory
+// the library may detect similarity to the raw observations and version one,
+// or create a standalone record — either way, the summary is stronger
+await memory.remember("summary", summary, 0.6);
+
+// 5. later, across multiple sessions, distill facts
+const summaries = await memory.list({ type: "summary" });
+const facts = await llm.extractFacts(summaries.map(m => m.content));
+
+for (const fact of facts) {
+  await memory.remember("fact", fact, 0.8);
+}
+
+// the raw observations will naturally decay and get evicted.
+// the summaries will decay slower. the facts will persist longest.
+```
+
+The wrapper controls the entire pipeline: when to consolidate, what LLM to use,
+what prompt to send, what types to assign. The library just stores at different
+strengths and manages the lifecycle.
+
+## Testing
+
+The library uses a clock abstraction internally for all time-dependent behavior
+(decay computation, timestamps on records). In production it uses the system
+clock. In tests, the clock is overridable:
+
+```typescript
+const memory = createMemory({
+  path: ':memory:',
+  clock: () => new Date('2026-01-01'),
+});
+
+// ... insert memories ...
+
+// advance time for decay testing
+memory.setClock(() => new Date('2026-02-01'));
+
+// now reads will compute decay as if 31 days have passed
+```
+
+This avoids `setTimeout` hacks or real waiting in tests. All decay, eviction,
+and reinforcement logic uses the injected clock.
 
 ## What this does NOT include
 
