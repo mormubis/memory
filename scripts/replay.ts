@@ -12,13 +12,12 @@
  * Usage: npx tsx scripts/replay.ts
  */
 
+import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import BetterSqlite3 from 'better-sqlite3';
 import { createOpencode } from '@opencode-ai/sdk';
-
-import type { OpencodeClient } from '@opencode-ai/sdk';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const MCP_SCRIPT = resolve(__dirname, 'mcp.ts');
@@ -83,8 +82,8 @@ Your job is to identify chess domain knowledge and store it using the memory_rem
 ## Critical: store every mention
 If Buchholz is mentioned 5 times, call memory_remember 5 times. Frequency is the signal — repeated concepts accumulate strength automatically.
 
-## Important: do NOT call memory_set_clock
-The clock is managed by the replay system, not by you. Only use memory_remember, memory_link, memory_search, and memory_stats.`;
+## Important
+Only use memory_remember, memory_link, memory_search, and memory_stats.`;
 
 // --- opencode db helpers ---
 
@@ -190,27 +189,12 @@ function formatGap(ms: number): string {
   return `${hours}h${remainMins > 0 ? `${remainMins}m` : ''}`;
 }
 
-// --- clock control via raw fetch to MCP tool ---
+// --- clock control via file ---
 
-async function setClockViaMcp(
-  client: OpencodeClient,
-  sessionId: string,
-  time: Date,
-): Promise<void> {
-  // call memory_set_clock by sending a prompt that instructs the agent
-  // to call the tool — but that's wasteful. instead, we use the opencode
-  // session prompt with a direct instruction.
-  await client.session.prompt({
-    path: { id: sessionId },
-    body: {
-      parts: [
-        {
-          type: 'text',
-          text: `call memory_set_clock with time "${time.toISOString()}" — just call the tool, no other output needed`,
-        },
-      ],
-    },
-  });
+const CLOCK_FILE = resolve(__dirname, '..', '.memory-clock');
+
+function setClock(time: Date): void {
+  writeFileSync(CLOCK_FILE, time.toISOString());
 }
 
 // --- main ---
@@ -261,13 +245,8 @@ async function main(): Promise<void> {
       const chunk = chunks[i]!;
 
       // --- clock management ---
-      // set clock to the chunk's start time
-      const chunkTime = new Date(chunk.startTime);
-      try {
-        await setClockViaMcp(client, sessionId, chunkTime);
-      } catch {
-        console.log(`  clock set failed for chunk ${i + 1}`);
-      }
+      // set clock to the chunk's start time (MCP reads from file)
+      setClock(new Date(chunk.startTime));
 
       // detect session break (30+ min gap from previous chunk)
       if (i > 0) {
