@@ -15,11 +15,21 @@ import * as z from 'zod/v4';
 import { createMemory } from '../src/index.js';
 
 // --- memory store ---
-// Lower threshold than ingest so consolidation creates versions.
 
 const memory = createMemory({
   path: './echecs-memory.db',
   similarityThreshold: 0.85,
+  decayRate: 0.99,
+  evictionThreshold: 0.05,
+  defaultStrength: 0.2,
+  typeStrength: {
+    constraint: 0.7,
+    decision: 0.7,
+    entity: 0.5,
+    pattern: 0.5,
+    rule: 0.6,
+    standard: 0.6,
+  },
 });
 
 // --- MCP server ---
@@ -34,16 +44,15 @@ server.registerTool(
   'memory_remember',
   {
     title: 'Remember',
-    description: 'Insert a new memory or update an existing similar one (creates a version if similarity >= threshold)',
+    description: 'Store a chess domain memory. Strength is determined by the type.',
     inputSchema: z.object({
-      type: z.string().describe('Memory type, e.g. "fact", "rule", "observation"'),
-      content: z.string().describe('The memory content to store'),
-      strength: z.number().min(0).max(1).optional().describe('Initial strength (0-1, default 0.5)'),
+      type: z.string().describe('Memory type: rule, entity, standard, decision, constraint, or pattern'),
+      content: z.string().describe('The knowledge to store — a clear standalone statement'),
     }),
   },
-  async ({ type, content, strength }) => {
+  async ({ type, content }) => {
     try {
-      const result = await memory.remember(type, content, strength);
+      const result = await memory.remember(type, content);
       return {
         content: [
           {
