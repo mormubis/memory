@@ -35,13 +35,10 @@ function createSearch(
   ): Promise<SearchResult[]> {
     const limit = options?.limit ?? 10;
     const minStrength = options?.minStrength ?? 0;
-    const bm25Weight = options?.weights?.bm25 ?? config.searchWeights.bm25;
-    const vectorWeight =
-      options?.weights?.vector ?? config.searchWeights.vector;
     const k = config.rrfK;
     const now = config.clock();
 
-    // BM25 stream
+    // --- BM25 stream ---
     const bm25Ids: string[] = [];
     try {
       let ftsQuery = `SELECT m.id, f.rank FROM memories_fts f JOIN memories m ON m.rowid = f.rowid WHERE memories_fts MATCH ? AND m.current = 1`;
@@ -63,7 +60,7 @@ function createSearch(
       // FTS MATCH failure — skip BM25 stream
     }
 
-    // Vector stream
+    // --- Vector stream ---
     const queryEmbedding = await embedder.embed(query);
     let vectorQuery = `SELECT mv.memory_id, mv.embedding FROM memory_vectors mv JOIN memories m ON m.id = mv.memory_id WHERE m.current = 1`;
     const vectorParams: unknown[] = [];
@@ -99,7 +96,33 @@ function createSearch(
     vectorScored.sort((a, b) => b.similarity - a.similarity);
     const vectorIds = vectorScored.slice(0, limit * 2).map((x) => x.id);
 
-    // RRF fusion
+    // --- Weight normalization ---
+    // If a stream returned no results, redistribute its weight
+    const hasBm25 = bm25Ids.length > 0;
+    const hasVector = vectorIds.length > 0;
+
+    let bm25Weight = options?.weights?.bm25 ?? config.searchWeights.bm25;
+    let vectorWeight = options?.weights?.vector ?? config.searchWeights.vector;
+
+    if (!hasBm25 && !hasVector) {
+      // nothing to fuse
+      bm25Weight = 0;
+      vectorWeight = 0;
+    } else if (!hasBm25) {
+      vectorWeight = 1;
+      bm25Weight = 0;
+    } else if (!hasVector) {
+      bm25Weight = 1;
+      vectorWeight = 0;
+    } else {
+      const total = bm25Weight + vectorWeight;
+      if (total > 0) {
+        bm25Weight /= total;
+        vectorWeight /= total;
+      }
+    }
+
+    // --- RRF fusion (pure relevance, no strength multiplier) ---
     const rrfScores = new Map<string, number>();
 
     bm25Ids.forEach((id, i) => {
@@ -112,12 +135,14 @@ function createSearch(
       rrfScores.set(id, prev + vectorWeight * (1 / (k + i + 1)));
     });
 
-    // Fetch memories, apply decay, filter, multiply by strength
+    // --- Fetch memories, apply decay filter (but don't use strength in score) ---
     const primary: SearchResult[] = [];
 
     for (const [id, rrfScore] of rrfScores.entries()) {
       const memory = store.get(id);
-      if (!memory) continue;
+      if (!memory) {
+        continue;
+      }
 
       const days = daysBetween(new Date(memory.updated), now);
       const effective = effectiveStrength(
@@ -126,16 +151,20 @@ function createSearch(
         config.decayRate,
       );
 
-      if (effective < config.evictionThreshold) continue;
-      if (effective < minStrength) continue;
+      if (effective < config.evictionThreshold) {
+        continue;
+      }
+      if (effective < minStrength) {
+        continue;
+      }
 
       primary.push({
         memory: { ...memory, strength: effective },
-        score: rrfScore * effective,
+        score: rrfScore,
       });
     }
 
-    // Link expansion
+    // --- Link expansion ---
     const primaryIds = new Set(primary.map((r) => r.memory.id));
     const expanded: SearchResult[] = [];
 
@@ -144,10 +173,14 @@ function createSearch(
       for (const link of relatedLinks) {
         const linkedId =
           link.sourceId === result.memory.id ? link.targetId : link.sourceId;
-        if (primaryIds.has(linkedId)) continue;
+        if (primaryIds.has(linkedId)) {
+          continue;
+        }
 
         const linkedMemory = store.get(linkedId);
-        if (!linkedMemory || !linkedMemory.current) continue;
+        if (!linkedMemory || !linkedMemory.current) {
+          continue;
+        }
 
         const days = daysBetween(new Date(linkedMemory.updated), now);
         const effective = effectiveStrength(
@@ -156,14 +189,18 @@ function createSearch(
           config.decayRate,
         );
 
-        if (effective < config.evictionThreshold) continue;
-        if (effective < minStrength) continue;
+        if (effective < config.evictionThreshold) {
+          continue;
+        }
+        if (effective < minStrength) {
+          continue;
+        }
 
-        // Decay link weight based on time since link was updated
+        // Link expansion score: decayed link weight * discount factor
         const linkDays = daysBetween(new Date(link.updated), now);
         const decayedWeight = link.weight * config.decayRate ** linkDays;
+        const linkScore = decayedWeight * 0.5;
 
-        const linkScore = decayedWeight * effective * 0.5;
         expanded.push({
           memory: { ...linkedMemory, strength: effective },
           score: linkScore,
@@ -172,10 +209,43 @@ function createSearch(
       }
     }
 
+    // --- Lineage diversification ---
+    // Max 3 results from the same version chain to prevent one concept
+    // from dominating results.
     const all = [...primary, ...expanded];
     all.sort((a, b) => b.score - a.score);
 
-    return all.slice(0, limit);
+    const diversified: SearchResult[] = [];
+    const lineageCounts = new Map<string, number>();
+    const maxPerLineage = 3;
+
+    for (const result of all) {
+      // Walk back to find the root of the version chain
+      let rootId = result.memory.id;
+      let current = result.memory;
+      while (current.parentId) {
+        rootId = current.parentId;
+        const parent = store.get(current.parentId);
+        if (!parent) {
+          break;
+        }
+        current = parent;
+      }
+
+      const count = lineageCounts.get(rootId) ?? 0;
+      if (count >= maxPerLineage) {
+        continue;
+      }
+
+      diversified.push(result);
+      lineageCounts.set(rootId, count + 1);
+
+      if (diversified.length >= limit) {
+        break;
+      }
+    }
+
+    return diversified;
   }
 
   return { search };
