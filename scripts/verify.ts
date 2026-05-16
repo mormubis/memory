@@ -2,7 +2,7 @@
 /**
  * Verification script for the echecs memory store.
  *
- * Runs after consolidation to verify the memory store works correctly.
+ * Run after replay to verify the memory store captured chess knowledge.
  * Safe to run on an empty DB (will just show zeros).
  *
  * Usage: npx tsx scripts/verify.ts
@@ -14,14 +14,23 @@ import { createMemory } from '../src/index.js';
 
 const DB_PATH = './echecs-memory.db';
 
+const memory = createMemory({
+  path: DB_PATH,
+  decayRate: 0.99,
+  evictionThreshold: 0.05,
+  typeStrength: {
+    constraint: 0.7,
+    decision: 0.7,
+    entity: 0.5,
+    pattern: 0.5,
+    rule: 0.6,
+    standard: 0.6,
+  },
+});
+
 // --- 1. Stats ---
 
 console.log('=== 1. store stats ===\n');
-
-const memory = createMemory({
-  path: DB_PATH,
-  similarityThreshold: 0.85,
-});
 
 const all = memory.list();
 const total = all.length;
@@ -33,7 +42,6 @@ let strengthSum = 0;
 for (const m of all) {
   byType[m.type] = (byType[m.type] ?? 0) + 1;
   strengthSum += m.strength;
-
   if (m.strength < 0.2) buckets['0-0.2']++;
   else if (m.strength < 0.5) buckets['0.2-0.5']++;
   else if (m.strength < 0.8) buckets['0.5-0.8']++;
@@ -42,33 +50,39 @@ for (const m of all) {
 
 console.log(`total current memories: ${total}`);
 console.log('by type:', byType);
-console.log(`avg strength: ${total > 0 ? (strengthSum / total).toFixed(4) : 'n/a'}`);
+console.log(
+  `avg strength: ${total > 0 ? (strengthSum / total).toFixed(4) : 'n/a'}`,
+);
 console.log('strength distribution:', buckets);
 
-// --- 2. Search queries ---
+// --- 2. Search queries (chess domain) ---
 
 console.log('\n=== 2. search queries ===');
 
 const queries = [
-  'tournament tiebreaker buchholz',
-  'PGN parser notation',
-  'Elo rating calculation',
-  'UCI chess engine protocol',
-  'FIDE Swiss pairing endorsement',
+  'Buchholz tiebreaker sum opponents scores',
+  'FIDE Swiss pairing rules endorsement',
+  'castling chess rule king rook',
+  'PGN portable game notation format',
+  'Elo rating calculation performance',
+  'UCI universal chess interface protocol',
+  'en passant capture pawn',
+  'tournament tiebreaker sonneborn berger',
 ];
 
 for (const query of queries) {
-  console.log(`\n  query: "${query}"`);
+  console.log(`\n  "${query}"`);
   try {
     const results = await memory.search(query, { limit: 3 });
     if (results.length === 0) {
       console.log('    (no results)');
     } else {
       for (const r of results) {
-        const preview = r.memory.content.slice(0, 100).replace(/\n/g, ' ');
+        const preview = r.memory.content.slice(0, 120).replace(/\n/g, ' ');
         console.log(
-          `    [${r.memory.type}] score=${r.score.toFixed(4)} strength=${r.memory.strength.toFixed(3)} — ${preview}`,
+          `    [${r.memory.type}] v${r.memory.version} strength=${r.memory.strength.toFixed(3)} score=${r.score.toFixed(4)}`,
         );
+        console.log(`    ${preview}`);
       }
     }
   } catch (err) {
@@ -76,28 +90,45 @@ for (const query of queries) {
   }
 }
 
-// --- 3. Versioning check ---
+// --- 3. Versioning (frequency signal) ---
 
-console.log('\n=== 3. versioning ===\n');
+console.log('\n=== 3. versioning (frequency signal) ===\n');
 
 try {
   const db = new BetterSqlite3(DB_PATH, { readonly: true });
 
-  const versionedRows = db
-    .prepare("SELECT id FROM memories WHERE version > 1 AND current = 1")
-    .all() as { id: string }[];
+  const chains = db
+    .prepare(
+      `
+      SELECT m.id, m.type, m.version, m.strength, substr(m.content, 1, 80) as preview
+      FROM memories m
+      WHERE m.current = 1 AND m.version > 1
+      ORDER BY m.version DESC
+      LIMIT 10
+    `,
+    )
+    .all() as {
+    id: string;
+    preview: string;
+    strength: number;
+    type: string;
+    version: number;
+  }[];
 
-  const chainCount = versionedRows.length;
-  const totalVersioned = (
-    db.prepare("SELECT COUNT(*) as n FROM memories WHERE version > 1").get() as { n: number }
-  ).n;
-
-  console.log(`chains with version > 1 (current heads): ${chainCount}`);
-  console.log(`total non-v1 rows (all versions): ${totalVersioned}`);
+  if (chains.length === 0) {
+    console.log('no memories with version > 1 yet');
+  } else {
+    console.log(`top ${chains.length} most-reinforced memories:`);
+    for (const c of chains) {
+      console.log(
+        `  [${c.type}] v${c.version} strength=${c.strength.toFixed(3)} — ${c.preview}`,
+      );
+    }
+  }
 
   db.close();
 } catch (err) {
-  console.log(`error reading versioning info: ${err}`);
+  console.log(`error: ${err}`);
 }
 
 // --- 4. Links ---
@@ -111,45 +142,59 @@ try {
     db.prepare('SELECT COUNT(*) as n FROM memory_links').get() as { n: number }
   ).n;
 
-  const relationRows = db
-    .prepare('SELECT DISTINCT relation FROM memory_links ORDER BY relation')
-    .all() as { relation: string }[];
+  const relations = db
+    .prepare(
+      'SELECT relation, COUNT(*) as n FROM memory_links GROUP BY relation ORDER BY n DESC',
+    )
+    .all() as { n: number; relation: string }[];
 
   console.log(`total links: ${totalLinks}`);
-  console.log(
-    'relation types:',
-    relationRows.length > 0 ? relationRows.map((r) => r.relation).join(', ') : '(none)',
-  );
+  if (relations.length > 0) {
+    console.log(
+      'by relation:',
+      relations.map((r) => `${r.relation}(${r.n})`).join(', '),
+    );
+  }
 
   db.close();
 } catch (err) {
-  console.log(`error reading links: ${err}`);
+  console.log(`error: ${err}`);
 }
 
 // --- 5. Decay simulation ---
 
-console.log('\n=== 5. decay simulation (60 days) ===\n');
+console.log('\n=== 5. decay simulation ===\n');
 
 try {
-  const futureDate = new Date();
-  futureDate.setDate(futureDate.getDate() + 60);
+  const now = new Date();
 
-  const memoryCopy = createMemory({
-    path: DB_PATH,
-    similarityThreshold: 0.85,
-    clock: () => futureDate,
-    evictionThreshold: 0.15,
-  });
+  const simulate = (days: number): number => {
+    const futureDate = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+    const sim = createMemory({
+      path: DB_PATH,
+      clock: () => futureDate,
+      decayRate: 0.99,
+      evictionThreshold: 0.05,
+    });
+    return sim.list().length;
+  };
 
-  const futureAll = memoryCopy.list();
-  const survive = futureAll.length;
-  const evicted = total - survive;
+  const d30 = simulate(30);
+  const d90 = simulate(90);
+  const d180 = simulate(180);
 
-  console.log(`memories now: ${total}`);
-  console.log(`memories surviving +60 days: ${survive}`);
-  console.log(`evicted: ${evicted > 0 ? evicted : 0}`);
+  console.log(`memories now:     ${total}`);
+  console.log(
+    `surviving 30d:    ${d30} (${total > 0 ? Math.round((d30 / total) * 100) : 0}%)`,
+  );
+  console.log(
+    `surviving 90d:    ${d90} (${total > 0 ? Math.round((d90 / total) * 100) : 0}%)`,
+  );
+  console.log(
+    `surviving 180d:   ${d180} (${total > 0 ? Math.round((d180 / total) * 100) : 0}%)`,
+  );
 } catch (err) {
-  console.log(`error running decay simulation: ${err}`);
+  console.log(`error: ${err}`);
 }
 
 console.log('\ndone.');
