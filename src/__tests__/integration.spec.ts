@@ -52,6 +52,64 @@ describe('createMemory', () => {
   });
 
   describe('remember', () => {
+    it('uses typeStrength map when no explicit strength provided', async () => {
+      let now = new Date('2026-01-01T00:00:00Z');
+      const mem = createMemory({
+        clock: () => now,
+        embed: fakeEmbed,
+        path: ':memory:',
+        similarityThreshold: 1.0,
+        typeStrength: { rule: 0.6, entity: 0.5 },
+      });
+      const r1 = await mem.remember('rule', 'castling requires king not in check');
+      const r2 = await mem.remember('entity', 'FIDE is the chess governing body');
+      const r3 = await mem.remember('fact', 'some untyped memory');
+
+      const m1 = mem.get(r1.id);
+      const m2 = mem.get(r2.id);
+      const m3 = mem.get(r3.id);
+
+      expect(m1?.strength).toBeGreaterThanOrEqual(0.6);
+      expect(m2?.strength).toBeGreaterThanOrEqual(0.5);
+      expect(m3?.strength).toBeGreaterThanOrEqual(0.2);
+      expect(m3?.strength).toBeLessThan(0.5);
+    });
+
+    it('auto-boosts strength when creating a new version', async () => {
+      let now = new Date('2026-01-01T00:00:00Z');
+      const mem = createMemory({
+        clock: () => now,
+        embed: fakeEmbed,
+        path: ':memory:',
+        similarityThreshold: 0.0,
+        reinforcementBoost: 0.1,
+      });
+
+      const v1 = await mem.remember('fact', 'castling rule', 0.2);
+      const v2 = await mem.remember('fact', 'castling rule updated', 0.2);
+      const m2 = mem.get(v2.id);
+
+      expect(v2.parentId).toBe(v1.id);
+      expect(m2?.strength).toBeGreaterThanOrEqual(0.3);
+    });
+
+    it('uses explicit strength when higher than auto-boost', async () => {
+      let now = new Date('2026-01-01T00:00:00Z');
+      const mem = createMemory({
+        clock: () => now,
+        embed: fakeEmbed,
+        path: ':memory:',
+        similarityThreshold: 0.0,
+        reinforcementBoost: 0.1,
+      });
+
+      await mem.remember('fact', 'castling rule', 0.2);
+      const v2 = await mem.remember('fact', 'castling rule updated', 0.8);
+      const m2 = mem.get(v2.id);
+
+      expect(m2?.strength).toBeGreaterThanOrEqual(0.8);
+    });
+
     it('inserts a new memory', async () => {
       const { memory } = setup();
       const result = await memory.remember('fact', 'the sky is blue');

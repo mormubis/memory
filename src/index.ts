@@ -88,24 +88,46 @@ function createMemory(input?: MemoryConfig): MemoryInstance {
       config.similarityThreshold,
     );
 
+    const resolvedStrength =
+      strength ?? config.typeStrength[type] ?? config.defaultStrength;
+
     let result: RememberResult;
 
     if (match) {
+      // Fetch previous version's stored strength and updated timestamp
+      const prev = db
+        .prepare('SELECT strength, updated FROM memories WHERE id = ?')
+        .get(match.id) as { strength: number; updated: string } | undefined;
+
+      const now = config.clock();
+      const prevStrength = prev?.strength ?? resolvedStrength;
+      const prevUpdated = prev ? new Date(prev.updated) : now;
+      const prevEffective = effectiveStrength(
+        prevStrength,
+        daysBetween(prevUpdated, now),
+        config.decayRate,
+      );
+      const boostedStrength = Math.min(
+        1.0,
+        prevEffective + config.reinforcementBoost,
+      );
+      const finalStrength = Math.max(resolvedStrength, boostedStrength);
+
       // Mark old as non-current
       db.prepare('UPDATE memories SET current = 0 WHERE id = ?').run(match.id);
 
-      // Insert new version
+      // Insert new version with auto-boosted strength
       result = store.insert({
         content,
         parentId: match.id,
-        strength: strength ?? config.defaultStrength,
+        strength: finalStrength,
         type,
         version: match.version + 1,
       });
     } else {
       result = store.insert({
         content,
-        strength: strength ?? config.defaultStrength,
+        strength: resolvedStrength,
         type,
       });
     }
