@@ -18,6 +18,7 @@ interface MemoryConfig {
     vector?: number;
   };
   similarityThreshold?: number;
+  typeStrength?: Record<string, number>;
 }
 
 interface ResolvedConfig {
@@ -35,14 +36,15 @@ interface ResolvedConfig {
     vector: number;
   };
   similarityThreshold: number;
+  typeStrength: Record<string, number>;
 }
 
 const DEFAULTS: ResolvedConfig = {
   clock: defaultClock,
-  decayRate: 0.95,
-  defaultStrength: 0.5,
+  decayRate: 0.99,
+  defaultStrength: 0.2,
   embed: null,
-  evictionThreshold: 0.15,
+  evictionThreshold: 0.05,
   linkExpansionHops: 1,
   path: './memory.db',
   reinforcementBoost: 0.1,
@@ -52,6 +54,7 @@ const DEFAULTS: ResolvedConfig = {
     vector: 0.6,
   },
   similarityThreshold: 0.85,
+  typeStrength: {},
 };
 
 function resolveConfig(input?: MemoryConfig): ResolvedConfig {
@@ -72,6 +75,7 @@ function resolveConfig(input?: MemoryConfig): ResolvedConfig {
     },
     similarityThreshold:
       input?.similarityThreshold ?? DEFAULTS.similarityThreshold,
+    typeStrength: input?.typeStrength ?? DEFAULTS.typeStrength,
   };
 }
 

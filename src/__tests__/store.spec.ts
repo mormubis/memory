@@ -28,7 +28,7 @@ describe('createStore', () => {
     it('uses default strength from config', () => {
       const result = store.insert({ content: 'hello', type: 'fact' });
       const mem = store.get(result.id);
-      expect(mem?.strength).toBe(0.5);
+      expect(mem?.strength).toBe(0.2);
     });
 
     it('accepts explicit strength', () => {

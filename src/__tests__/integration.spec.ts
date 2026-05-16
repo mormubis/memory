@@ -122,9 +122,9 @@ describe('createMemory', () => {
     it('filters out evicted memories', async () => {
       const { memory, advance } = setup();
       await memory.remember('fact', 'temporary memory', 0.2);
-      // Advance enough days to decay below eviction threshold (0.15)
-      // 0.2 * 0.95^N < 0.15 => N > log(0.15/0.2)/log(0.95) ≈ 5.6 days
-      advance(10);
+      // Advance enough days to decay below eviction threshold (0.05)
+      // 0.2 * 0.99^N < 0.05 => N > log(0.05/0.2)/log(0.99) ≈ 138 days
+      advance(150);
 
       const mems = memory.list();
       expect(mems.length).toBe(0);
@@ -159,11 +159,13 @@ describe('createMemory', () => {
     it('eviction excludes memories from list', async () => {
       const { memory, advance } = setup();
       await memory.remember('fact', 'very weak memory', 0.16);
-      advance(5);
+      // Advance enough days to decay below eviction threshold (0.05)
+      // 0.16 * 0.99^N < 0.05 => N > log(0.05/0.16)/log(0.99) ≈ 115 days
+      advance(120);
 
       const mems = memory.list();
       // After decay, strength should drop below eviction threshold
-      expect(mems.every((m) => m.strength >= 0.15)).toBe(true);
+      expect(mems.every((m) => m.strength >= 0.05)).toBe(true);
     });
   });
 

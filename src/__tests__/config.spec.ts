@@ -37,4 +37,17 @@ describe('resolveConfig', () => {
     const config = resolveConfig({ embed });
     expect(config.embed).toBe(embed);
   });
+
+  it('returns empty typeStrength when not provided', () => {
+    const config = resolveConfig();
+    expect(config.typeStrength).toEqual({});
+  });
+
+  it('accepts a typeStrength map', () => {
+    const config = resolveConfig({
+      typeStrength: { rule: 0.6, entity: 0.5 },
+    });
+    expect(config.typeStrength['rule']).toBe(0.6);
+    expect(config.typeStrength['entity']).toBe(0.5);
+  });
 });
