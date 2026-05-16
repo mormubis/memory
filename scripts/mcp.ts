@@ -14,9 +14,12 @@ import * as z from 'zod/v4';
 
 import { createMemory } from '../src/index.js';
 
-// --- memory store ---
+// --- fake clock (advanceable via memory_set_clock tool) ---
+
+let currentTime = new Date();
 
 const memory = createMemory({
+  clock: () => currentTime,
   path: './echecs-memory.db',
   similarityThreshold: 0.85,
   decayRate: 0.99,
@@ -306,6 +309,43 @@ server.registerTool(
           {
             type: 'text' as const,
             text: JSON.stringify({ total, byType, avgStrength, byStrengthBucket: buckets }),
+          },
+        ],
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text' as const, text: `error: ${err}` }],
+        isError: true,
+      };
+    }
+  },
+);
+
+// 10. memory_set_clock — advance the simulated clock (for e2e testing)
+server.registerTool(
+  'memory_set_clock',
+  {
+    title: 'Set Clock',
+    description: 'Set the simulated time for the memory store (ISO timestamp). Used by replay scripts to simulate time passing.',
+    inputSchema: z.object({
+      time: z.string().describe('ISO 8601 timestamp, e.g. "2026-03-15T20:00:00Z"'),
+    }),
+  },
+  ({ time }) => {
+    try {
+      const parsed = new Date(time);
+      if (isNaN(parsed.getTime())) {
+        return {
+          content: [{ type: 'text' as const, text: 'error: invalid timestamp' }],
+          isError: true,
+        };
+      }
+      currentTime = parsed;
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify({ success: true, time: currentTime.toISOString() }),
           },
         ],
       };
