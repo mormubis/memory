@@ -20,7 +20,7 @@ function fromBlob(blob: Buffer): number[] {
   return [...float32];
 }
 
-function createEmbedder(customEmbed: EmbedFunction | undefined): Embedder {
+function createEmbedder(customEmbed?: EmbedFunction): Embedder {
   async function embed(text: string): Promise<number[]> {
     if (customEmbed) {
       return customEmbed(text);

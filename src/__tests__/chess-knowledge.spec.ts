@@ -79,7 +79,9 @@ async function populateMemory(
       (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime(),
     );
 
-  const ids = Array.from({ length: fixture.memories.length });
+  const ids = Array.from<string | undefined>({
+    length: fixture.memories.length,
+  });
 
   for (const entry of sorted) {
     clock.now = new Date(entry.time);

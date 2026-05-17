@@ -14,9 +14,9 @@ import type { Search } from '../search.js';
 import type { Store } from '../store.js';
 
 async function fakeEmbed(text: string): Promise<number[]> {
-  const vec = Array.from({ length: 8 }).fill(0);
+  const vec = Array.from<number>({ length: 8 }).fill(0);
   for (let index = 0; index < text.length; index++) {
-    vec[index % 8] += (text.codePointAt(index) ?? 0) / 1000;
+    vec[index % 8]! += (text.codePointAt(index) ?? 0) / 1000;
   }
   const norm = Math.sqrt(vec.reduce((s: number, v: number) => s + v * v, 0));
   return vec.map((v: number) => v / (norm || 1));
