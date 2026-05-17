@@ -33,8 +33,8 @@
     "lint:ci": "eslint 'src/**/*.ts' '*.mjs' --max-warnings 0 && tsc --noEmit",
     "lint:style": "eslint 'src/**/*.ts' '*.mjs' --fix",
     "lint:types": "tsc --noEmit",
-    "format": "prettier --write '**/*'",
-    "format:ci": "prettier --check '**/*'",
+    "format": "pnpm run format:ci --write",
+    "format:ci": "prettier -l \"**/*.+(css|js|json|jsx|md|mjs|mts|ts|tsx|yml|yaml)\"",
     "prepare": "husky"
   },
   "dependencies": {
