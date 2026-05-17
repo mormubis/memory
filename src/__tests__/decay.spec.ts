@@ -36,10 +36,10 @@ describe('reinforce', () => {
   });
 
   it('caps at 1.0', () => {
-    expect(reinforce(0.95, 0.1)).toBe(1.0);
+    expect(reinforce(0.95, 0.1)).toBe(1);
   });
 
   it('caps at 1.0 even with large boost', () => {
-    expect(reinforce(0.5, 0.8)).toBe(1.0);
+    expect(reinforce(0.5, 0.8)).toBe(1);
   });
 });

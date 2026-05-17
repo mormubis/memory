@@ -3,7 +3,7 @@ interface Memory {
   created: string;
   current: boolean;
   id: string;
-  parentId: string | null;
+  parentId: string | undefined;
   strength: number;
   type: string;
   updated: string;
@@ -26,7 +26,7 @@ interface SearchResult {
 
 interface RememberResult {
   id: string;
-  parentId: string | null;
+  parentId: string | undefined;
   version: number;
 }
 

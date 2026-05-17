@@ -1,10 +1,10 @@
 import type Database from 'better-sqlite3';
 
-function createSchema(db: Database.Database): void {
-  db.exec('PRAGMA journal_mode = WAL');
-  db.exec('PRAGMA foreign_keys = ON');
+function createSchema(database: Database.Database): void {
+  database.exec('PRAGMA journal_mode = WAL');
+  database.exec('PRAGMA foreign_keys = ON');
 
-  db.exec(`
+  database.exec(`
     CREATE TABLE IF NOT EXISTS memories (
       id TEXT PRIMARY KEY,
       type TEXT NOT NULL,
@@ -18,24 +18,24 @@ function createSchema(db: Database.Database): void {
     )
   `);
 
-  db.exec(
+  database.exec(
     'CREATE INDEX IF NOT EXISTS idx_memories_current ON memories (current)',
   );
-  db.exec(
+  database.exec(
     'CREATE INDEX IF NOT EXISTS idx_memories_type_current ON memories (type, current)',
   );
-  db.exec(
+  database.exec(
     'CREATE INDEX IF NOT EXISTS idx_memories_parent_id ON memories (parent_id)',
   );
 
-  db.exec(`
+  database.exec(`
     CREATE TABLE IF NOT EXISTS memory_vectors (
       memory_id TEXT PRIMARY KEY,
       embedding BLOB NOT NULL
     )
   `);
 
-  db.exec(`
+  database.exec(`
     CREATE TABLE IF NOT EXISTS memory_links (
       source_id TEXT NOT NULL,
       target_id TEXT NOT NULL,
@@ -47,7 +47,7 @@ function createSchema(db: Database.Database): void {
     )
   `);
 
-  db.exec(`
+  database.exec(`
     CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts
     USING fts5(content, content_rowid='rowid')
   `);

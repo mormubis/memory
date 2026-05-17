@@ -1,7 +1,6 @@
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-
 import { describe, expect, it } from 'vitest';
 
 import { createMemory } from '../index.js';
@@ -32,10 +31,12 @@ interface Fixture {
 
 // deterministic fake embedder — bigram frequencies over 64 dimensions
 async function fakeEmbed(text: string): Promise<number[]> {
-  const vec = new Array(64).fill(0) as number[];
+  const vec = Array.from({ length: 64 }).fill(0) as number[];
   const lower = text.toLowerCase();
-  for (let i = 0; i < lower.length - 1; i++) {
-    const bigram = lower.charCodeAt(i) * 31 + lower.charCodeAt(i + 1);
+  for (let index = 0; index < lower.length - 1; index++) {
+    const bigram =
+      (lower.codePointAt(index) ?? 0) * 31 +
+      (lower.codePointAt(index + 1) ?? 0);
     vec[bigram % 64]! += 1;
   }
   const norm = Math.sqrt(vec.reduce((s, v) => s + v * v, 0));
@@ -44,8 +45,8 @@ async function fakeEmbed(text: string): Promise<number[]> {
 
 function loadFixture(): Fixture {
   const raw = readFileSync(
-    resolve(__dirname, 'fixtures/chess-knowledge.json'),
-    'utf-8',
+    path.resolve(__dirname, 'fixtures/chess-knowledge.json'),
+    'utf8',
   );
   return JSON.parse(raw) as Fixture;
 }
@@ -73,10 +74,12 @@ async function populateMemory(
 
   // insert memories in chronological order, advancing the clock
   const sorted = fixture.memories
-    .map((m, i) => ({ ...m, originalIndex: i }))
-    .sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+    .map((m, index) => ({ ...m, originalIndex: index }))
+    .toSorted(
+      (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime(),
+    );
 
-  const ids = new Array<string>(fixture.memories.length);
+  const ids = Array.from({ length: fixture.memories.length });
 
   for (const entry of sorted) {
     clock.now = new Date(entry.time);
@@ -151,17 +154,25 @@ describe('chess knowledge base', () => {
       const all = memory.list();
       const versioned = all.filter((m) => m.version > 1);
 
-      for (const m of versioned) {
-        const chain = memory.history(m.id);
-        if (chain.length >= 2) {
-          const current = chain[0]!;
-          const baseStrength =
-            ({ constraint: 0.7, decision: 0.7, entity: 0.5, pattern: 0.5, rule: 0.6, standard: 0.6 } as Record<string, number>)[
-              current.type
-            ] ?? 0.2;
-          // reinforced on get(), so at least base strength
-          expect(current.strength).toBeGreaterThanOrEqual(baseStrength);
-        }
+      const chainsWithMultipleVersions = versioned
+        .map((m) => memory.history(m.id))
+        .filter((chain) => chain.length >= 2);
+
+      for (const chain of chainsWithMultipleVersions) {
+        const current = chain[0]!;
+        const baseStrength =
+          (
+            {
+              constraint: 0.7,
+              decision: 0.7,
+              entity: 0.5,
+              pattern: 0.5,
+              rule: 0.6,
+              standard: 0.6,
+            } as Record<string, number>
+          )[current.type] ?? 0.2;
+        // reinforced on get(), so at least base strength
+        expect(current.strength).toBeGreaterThanOrEqual(baseStrength);
       }
     });
   });
@@ -188,7 +199,9 @@ describe('chess knowledge base', () => {
     it('finds bbpPairings as reference engine', async () => {
       const clock = { now: new Date('2026-05-17T00:00:00Z') };
       const { memory } = await populateMemory(fixture, clock);
-      const results = await memory.search('reference pairing engine', { limit: 5 });
+      const results = await memory.search('reference pairing engine', {
+        limit: 5,
+      });
       expect(results.length).toBeGreaterThan(0);
       const contents = results.map((r) => r.memory.content.toLowerCase());
       expect(contents.some((c) => c.includes('bbppairings'))).toBe(true);
@@ -197,14 +210,19 @@ describe('chess knowledge base', () => {
     it('finds tournament tiebreak architecture', async () => {
       const clock = { now: new Date('2026-05-17T00:00:00Z') };
       const { memory } = await populateMemory(fixture, clock);
-      const results = await memory.search('tiebreak package architecture', { limit: 5 });
+      const results = await memory.search('tiebreak package architecture', {
+        limit: 5,
+      });
       expect(results.length).toBeGreaterThan(0);
     });
 
     it('type filter returns only matching types', async () => {
       const clock = { now: new Date('2026-05-17T00:00:00Z') };
       const { memory } = await populateMemory(fixture, clock);
-      const results = await memory.search('echecs', { limit: 5, type: 'entity' });
+      const results = await memory.search('echecs', {
+        limit: 5,
+        type: 'entity',
+      });
       // primary results should all be entity (link expansion may add others)
       const entities = results.filter((r) => r.memory.type === 'entity');
       expect(entities.length).toBeGreaterThan(0);
@@ -219,7 +237,7 @@ describe('chess knowledge base', () => {
       // all strengths should be <= their type base strength
       // (because get() reinforces, but list() doesn't — and time has passed)
       for (const m of all) {
-        expect(m.strength).toBeLessThanOrEqual(1.0);
+        expect(m.strength).toBeLessThanOrEqual(1);
         expect(m.strength).toBeGreaterThan(0.05);
       }
     });
@@ -258,10 +276,10 @@ describe('chess knowledge base', () => {
 
       // find a memory that has links in the fixture
       const linkedIndex = fixture.links[0]?.source;
-      if (linkedIndex !== undefined && ids[linkedIndex]) {
-        const related = memory.related(ids[linkedIndex]!);
-        expect(related.length).toBeGreaterThan(0);
-      }
+      expect(linkedIndex).toBeDefined();
+      expect(ids[linkedIndex!]).toBeDefined();
+      const related = memory.related(ids[linkedIndex!]!);
+      expect(related.length).toBeGreaterThan(0);
     });
 
     it('search expands via links', async () => {

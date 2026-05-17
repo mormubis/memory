@@ -25,7 +25,7 @@ interface ResolvedConfig {
   clock: Clock;
   decayRate: number;
   defaultStrength: number;
-  embed: EmbedFunction | null;
+  embed: EmbedFunction | undefined;
   evictionThreshold: number;
   linkExpansionHops: number;
   path: string;
@@ -43,7 +43,7 @@ const DEFAULTS: ResolvedConfig = {
   clock: defaultClock,
   decayRate: 0.99,
   defaultStrength: 0.2,
-  embed: null,
+  embed: undefined,
   evictionThreshold: 0.05,
   linkExpansionHops: 1,
   path: './memory.db',

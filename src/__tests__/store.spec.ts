@@ -2,19 +2,19 @@ import Database from 'better-sqlite3';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { resolveConfig } from '../config.js';
-import { createSchema } from '../db.js';
+import { createSchema } from '../database.js';
 import { createStore } from '../store.js';
 
 import type { Store } from '../store.js';
 
 describe('createStore', () => {
-  let db: Database.Database;
+  let database: Database.Database;
   let store: Store;
 
   beforeEach(() => {
-    db = new Database(':memory:');
-    createSchema(db);
-    store = createStore(db, resolveConfig());
+    database = new Database(':memory:');
+    createSchema(database);
+    store = createStore(database, resolveConfig());
   });
 
   describe('insert', () => {
@@ -22,7 +22,7 @@ describe('createStore', () => {
       const result = store.insert({ content: 'hello', type: 'fact' });
       expect(result.id).toBeDefined();
       expect(result.version).toBe(1);
-      expect(result.parentId).toBeNull();
+      expect(result.parentId).toBeUndefined();
     });
 
     it('uses default strength from config', () => {
@@ -58,14 +58,14 @@ describe('createStore', () => {
     it('returns memory by id', () => {
       const { id } = store.insert({ content: 'test content', type: 'note' });
       const mem = store.get(id);
-      expect(mem).not.toBeNull();
+      expect(mem).toBeDefined();
       expect(mem?.content).toBe('test content');
       expect(mem?.type).toBe('note');
       expect(mem?.current).toBe(true);
     });
 
-    it('returns null for unknown id', () => {
-      expect(store.get('nonexistent')).toBeNull();
+    it('returns undefined for unknown id', () => {
+      expect(store.get('nonexistent')).toBeUndefined();
     });
   });
 
@@ -73,10 +73,12 @@ describe('createStore', () => {
     it('returns only current memories', () => {
       store.insert({ content: 'current', type: 'fact' });
       // manually insert a non-current row
-      db.prepare(
-        `INSERT INTO memories (id, type, content, strength, version, parent_id, current, created, updated)
+      database
+        .prepare(
+          `INSERT INTO memories (id, type, content, strength, version, parent_id, current, created, updated)
          VALUES ('old', 'fact', 'old content', 0.5, 1, NULL, 0, datetime('now'), datetime('now'))`,
-      ).run();
+        )
+        .run();
 
       const results = store.list();
       expect(results.every((m) => m.current === true)).toBe(true);
@@ -120,22 +122,21 @@ describe('createStore', () => {
     it('hard deletes the memory', () => {
       const { id } = store.insert({ content: 'to forget', type: 'fact' });
       store.forget(id);
-      expect(store.get(id)).toBeNull();
+      expect(store.get(id)).toBeUndefined();
     });
 
     it('cleans up FTS index', () => {
       const { id } = store.insert({ content: 'searchable text', type: 'fact' });
-      const rowBefore = db
+      const rowBefore = database
         .prepare('SELECT rowid FROM memories WHERE id = ?')
         .get(id) as { rowid: number } | undefined;
       store.forget(id);
       // memory is gone, so use saved rowid to check FTS
-      if (rowBefore) {
-        const ftsRow = db
-          .prepare('SELECT rowid FROM memories_fts WHERE rowid = ?')
-          .get(rowBefore.rowid);
-        expect(ftsRow).toBeUndefined();
-      }
+      expect(rowBefore).toBeDefined();
+      const ftsRow = database
+        .prepare('SELECT rowid FROM memories_fts WHERE rowid = ?')
+        .get(rowBefore!.rowid);
+      expect(ftsRow).toBeUndefined();
     });
   });
 

@@ -1,5 +1,3 @@
-import type Database from 'better-sqlite3';
-
 import { daysBetween, effectiveStrength } from './decay.js';
 
 import type { ResolvedConfig } from './config.js';
@@ -7,6 +5,7 @@ import type { Embedder } from './embed.js';
 import type { Links } from './links.js';
 import type { Store } from './store.js';
 import type { SearchOptions, SearchResult } from './types.js';
+import type Database from 'better-sqlite3';
 
 interface VectorRow {
   embedding: Buffer;
@@ -23,7 +22,7 @@ interface Search {
 }
 
 function createSearch(
-  db: Database.Database,
+  database: Database.Database,
   config: ResolvedConfig,
   store: Store,
   links: Links,
@@ -42,17 +41,19 @@ function createSearch(
     const bm25Ids: string[] = [];
     try {
       let ftsQuery = `SELECT m.id, f.rank FROM memories_fts f JOIN memories m ON m.rowid = f.rowid WHERE memories_fts MATCH ? AND m.current = 1`;
-      const ftsParams: unknown[] = [query];
+      const ftsParameters: unknown[] = [query];
 
       if (options?.type !== undefined) {
         ftsQuery += ' AND m.type = ?';
-        ftsParams.push(options.type);
+        ftsParameters.push(options.type);
       }
 
       ftsQuery += ' ORDER BY f.rank LIMIT ?';
-      ftsParams.push(limit * 2);
+      ftsParameters.push(limit * 2);
 
-      const ftsRows = db.prepare(ftsQuery).all(...ftsParams) as FtsRow[];
+      const ftsRows = database
+        .prepare(ftsQuery)
+        .all(...ftsParameters) as FtsRow[];
       for (const row of ftsRows) {
         bm25Ids.push(row.id);
       }
@@ -63,17 +64,17 @@ function createSearch(
     // --- Vector stream ---
     const queryEmbedding = await embedder.embed(query);
     let vectorQuery = `SELECT mv.memory_id, mv.embedding FROM memory_vectors mv JOIN memories m ON m.id = mv.memory_id WHERE m.current = 1`;
-    const vectorParams: unknown[] = [];
+    const vectorParameters: unknown[] = [];
 
     if (options?.type !== undefined) {
       vectorQuery += ' AND m.type = ?';
-      vectorParams.push(options.type);
+      vectorParameters.push(options.type);
     }
 
     const vectorRows = (
-      vectorParams.length > 0
-        ? db.prepare(vectorQuery).all(...vectorParams)
-        : db.prepare(vectorQuery).all()
+      vectorParameters.length > 0
+        ? database.prepare(vectorQuery).all(...vectorParameters)
+        : database.prepare(vectorQuery).all()
     ) as VectorRow[];
 
     const vectorScored: { id: string; similarity: number }[] = [];
@@ -82,9 +83,9 @@ function createSearch(
       let dot = 0;
       let normA = 0;
       let normB = 0;
-      for (let i = 0; i < queryEmbedding.length; i++) {
-        const ai = queryEmbedding[i] ?? 0;
-        const bi = vec[i] ?? 0;
+      for (const [index, element] of queryEmbedding.entries()) {
+        const ai = element ?? 0;
+        const bi = vec[index] ?? 0;
         dot += ai * bi;
         normA += ai * ai;
         normB += bi * bi;
@@ -111,29 +112,29 @@ function createSearch(
     } else if (!hasBm25) {
       vectorWeight = 1;
       bm25Weight = 0;
-    } else if (!hasVector) {
-      bm25Weight = 1;
-      vectorWeight = 0;
-    } else {
+    } else if (hasVector) {
       const total = bm25Weight + vectorWeight;
       if (total > 0) {
         bm25Weight /= total;
         vectorWeight /= total;
       }
+    } else {
+      bm25Weight = 1;
+      vectorWeight = 0;
     }
 
     // --- RRF fusion (pure relevance, no strength multiplier) ---
     const rrfScores = new Map<string, number>();
 
-    bm25Ids.forEach((id, i) => {
-      const prev = rrfScores.get(id) ?? 0;
-      rrfScores.set(id, prev + bm25Weight * (1 / (k + i + 1)));
-    });
+    for (const [index, id] of bm25Ids.entries()) {
+      const previous = rrfScores.get(id) ?? 0;
+      rrfScores.set(id, previous + bm25Weight * (1 / (k + index + 1)));
+    }
 
-    vectorIds.forEach((id, i) => {
-      const prev = rrfScores.get(id) ?? 0;
-      rrfScores.set(id, prev + vectorWeight * (1 / (k + i + 1)));
-    });
+    for (const [index, id] of vectorIds.entries()) {
+      const previous = rrfScores.get(id) ?? 0;
+      rrfScores.set(id, previous + vectorWeight * (1 / (k + index + 1)));
+    }
 
     // --- Fetch memories, apply decay filter (but don't use strength in score) ---
     const primary: SearchResult[] = [];

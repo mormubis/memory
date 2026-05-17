@@ -5,9 +5,9 @@ import { createMemory } from '../index.js';
 import type { MemoryInstance } from '../index.js';
 
 async function fakeEmbed(text: string): Promise<number[]> {
-  const vec = new Array(8).fill(0);
-  for (let i = 0; i < text.length; i++) {
-    vec[i % 8] += text.charCodeAt(i) / 1000;
+  const vec = Array.from({ length: 8 }).fill(0);
+  for (let index = 0; index < text.length; index++) {
+    vec[index % 8] += (text.codePointAt(index) ?? 0) / 1000;
   }
   const norm = Math.sqrt(vec.reduce((s: number, v: number) => s + v * v, 0));
   return vec.map((v: number) => v / (norm || 1));
@@ -18,7 +18,7 @@ async function fakeEmbed(text: string): Promise<number[]> {
  * accidentally creates versions for unrelated content (fakeEmbed produces
  * high cosine similarity for all text since it's character-frequency based).
  */
-function setup(similarityThreshold = 1.0): {
+function setup(similarityThreshold = 1): {
   advance: (days: number) => void;
   memory: MemoryInstance;
 } {
@@ -53,16 +53,22 @@ describe('createMemory', () => {
 
   describe('remember', () => {
     it('uses typeStrength map when no explicit strength provided', async () => {
-      let now = new Date('2026-01-01T00:00:00Z');
+      const now = new Date('2026-01-01T00:00:00Z');
       const mem = createMemory({
         clock: () => now,
         embed: fakeEmbed,
         path: ':memory:',
-        similarityThreshold: 1.0,
+        similarityThreshold: 1,
         typeStrength: { rule: 0.6, entity: 0.5 },
       });
-      const r1 = await mem.remember('rule', 'castling requires king not in check');
-      const r2 = await mem.remember('entity', 'FIDE is the chess governing body');
+      const r1 = await mem.remember(
+        'rule',
+        'castling requires king not in check',
+      );
+      const r2 = await mem.remember(
+        'entity',
+        'FIDE is the chess governing body',
+      );
       const r3 = await mem.remember('fact', 'some untyped memory');
 
       const m1 = mem.get(r1.id);
@@ -76,12 +82,12 @@ describe('createMemory', () => {
     });
 
     it('auto-boosts strength when creating a new version', async () => {
-      let now = new Date('2026-01-01T00:00:00Z');
+      const now = new Date('2026-01-01T00:00:00Z');
       const mem = createMemory({
         clock: () => now,
         embed: fakeEmbed,
         path: ':memory:',
-        similarityThreshold: 0.0,
+        similarityThreshold: 0,
         reinforcementBoost: 0.1,
       });
 
@@ -94,12 +100,12 @@ describe('createMemory', () => {
     });
 
     it('uses explicit strength when higher than auto-boost', async () => {
-      let now = new Date('2026-01-01T00:00:00Z');
+      const now = new Date('2026-01-01T00:00:00Z');
       const mem = createMemory({
         clock: () => now,
         embed: fakeEmbed,
         path: ':memory:',
-        similarityThreshold: 0.0,
+        similarityThreshold: 0,
         reinforcementBoost: 0.1,
       });
 
@@ -115,12 +121,12 @@ describe('createMemory', () => {
       const result = await memory.remember('fact', 'the sky is blue');
       expect(result.id).toBeDefined();
       expect(result.version).toBe(1);
-      expect(result.parentId).toBeNull();
+      expect(result.parentId).toBeUndefined();
     });
 
     it('creates a new version when content is similar', async () => {
       // Use low threshold to force versioning via fakeEmbed similarity
-      const { memory } = setup(0.0);
+      const { memory } = setup(0);
       const v1 = await memory.remember('fact', 'the sky is blue');
       const v2 = await memory.remember('fact', 'the sky is blue');
 
@@ -136,7 +142,7 @@ describe('createMemory', () => {
         'elephants are large mammals with trunks and big ears',
       );
 
-      expect(r2.parentId).toBeNull();
+      expect(r2.parentId).toBeUndefined();
       expect(r2.id).not.toBe(r1.id);
       expect(r2.version).toBe(1);
     });
@@ -147,13 +153,13 @@ describe('createMemory', () => {
       const { memory } = setup();
       const { id } = await memory.remember('fact', 'the sky is blue');
       const mem = memory.get(id);
-      expect(mem).not.toBeNull();
+      expect(mem).toBeDefined();
       expect(mem?.content).toBe('the sky is blue');
     });
 
-    it('returns null for unknown id', () => {
+    it('returns undefined for unknown id', () => {
       const { memory } = setup();
-      expect(memory.get('nonexistent')).toBeNull();
+      expect(memory.get('nonexistent')).toBeUndefined();
     });
 
     it('reinforces strength on access', async () => {
@@ -174,7 +180,7 @@ describe('createMemory', () => {
       const mems = memory.list();
       expect(mems.length).toBe(1);
       // strength should be decayed slightly
-      expect(mems[0]?.strength).toBeLessThan(1.0);
+      expect(mems[0]?.strength).toBeLessThan(1);
     });
 
     it('filters out evicted memories', async () => {
@@ -209,9 +215,8 @@ describe('createMemory', () => {
 
       advance(30);
       const mem = memory.get(id);
-      if (mem) {
-        expect(mem.strength).toBeLessThan(0.8);
-      }
+      expect(mem).toBeDefined();
+      expect(mem?.strength).toBeLessThan(0.8);
     });
 
     it('eviction excludes memories from list', async () => {
@@ -229,7 +234,7 @@ describe('createMemory', () => {
 
   describe('history', () => {
     it('returns version chain', async () => {
-      const { memory } = setup(0.0);
+      const { memory } = setup(0);
       const v1 = await memory.remember('fact', 'the sky is blue');
       const v2 = await memory.remember('fact', 'the sky is blue');
 
@@ -247,9 +252,9 @@ describe('createMemory', () => {
       const r2 = await memory.remember('fact', 'orange is a fruit');
 
       memory.link(r1.id, r2.id, 'similar');
-      const rel = memory.related(r1.id);
-      expect(rel).toHaveLength(1);
-      expect(rel[0]?.relation).toBe('similar');
+      const related = memory.related(r1.id);
+      expect(related).toHaveLength(1);
+      expect(related[0]?.relation).toBe('similar');
     });
 
     it('unlinks memories', async () => {
@@ -268,7 +273,7 @@ describe('createMemory', () => {
       const { memory } = setup();
       const { id } = await memory.remember('fact', 'something to forget');
       memory.forget(id);
-      expect(memory.get(id)).toBeNull();
+      expect(memory.get(id)).toBeUndefined();
       expect(memory.list().find((m) => m.id === id)).toBeUndefined();
     });
   });

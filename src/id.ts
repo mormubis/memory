@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 function generateId(): string {
-  return randomUUID().replace(/-/g, '');
+  return randomUUID().replaceAll('-', '');
 }
 
 export { generateId };

@@ -27,8 +27,11 @@
     "test:coverage": "vitest run --coverage",
     "lint": "eslint 'src/**/*.ts' '*.mjs' --fix && tsc --noEmit",
     "lint:ci": "eslint 'src/**/*.ts' '*.mjs' --max-warnings 0 && tsc --noEmit",
+    "lint:style": "eslint 'src/**/*.ts' '*.mjs' --fix",
+    "lint:types": "tsc --noEmit",
     "format": "prettier --write '**/*'",
-    "format:ci": "prettier --check '**/*'"
+    "format:ci": "prettier --check '**/*'",
+    "prepare": "husky"
   },
   "dependencies": {
     "better-sqlite3": "^12.10.0"
@@ -54,8 +57,14 @@
     "@types/better-sqlite3": "^7.0.0",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
     "@typescript-eslint/parser": "^8.0.0",
+    "@vitest/eslint-plugin": "^1.6.17",
     "eslint": "^10.4.0",
     "eslint-config-prettier": "^10.0.0",
+    "eslint-import-resolver-typescript": "^4.4.4",
+    "eslint-plugin-import-x": "^4.16.2",
+    "eslint-plugin-unicorn": "^64.0.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.5",
     "prettier": "^3.0.0",
     "tsdown": "^0.22.0",
     "typescript": "^5.8.0",

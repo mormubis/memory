@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import { DEFAULTS, resolveConfig } from '../config.js';
 
+async function customEmbed(_text: string): Promise<number[]> {
+  return [1, 2, 3];
+}
+
 describe('resolveConfig', () => {
   it('returns defaults when called with no arguments', () => {
     const config = resolveConfig();
@@ -10,7 +14,7 @@ describe('resolveConfig', () => {
     expect(config.evictionThreshold).toBe(DEFAULTS.evictionThreshold);
     expect(config.path).toBe(DEFAULTS.path);
     expect(config.similarityThreshold).toBe(DEFAULTS.similarityThreshold);
-    expect(config.embed).toBeNull();
+    expect(config.embed).toBeUndefined();
   });
 
   it('overrides specific values', () => {
@@ -33,9 +37,8 @@ describe('resolveConfig', () => {
   });
 
   it('accepts a custom embed function', () => {
-    const embed = async (_text: string) => [1, 2, 3];
-    const config = resolveConfig({ embed });
-    expect(config.embed).toBe(embed);
+    const config = resolveConfig({ embed: customEmbed });
+    expect(config.embed).toBe(customEmbed);
   });
 
   it('returns empty typeStrength when not provided', () => {

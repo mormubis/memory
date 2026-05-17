@@ -7,7 +7,7 @@ function effectiveStrength(
 }
 
 function reinforce(currentStrength: number, boost: number): number {
-  return Math.min(1.0, currentStrength + boost);
+  return Math.min(1, currentStrength + boost);
 }
 
 function daysBetween(a: Date, b: Date): number {

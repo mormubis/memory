@@ -1,7 +1,7 @@
 import BetterSqlite3 from 'better-sqlite3';
 
 import { resolveConfig } from './config.js';
-import { createSchema } from './db.js';
+import { createSchema } from './database.js';
 import { daysBetween, effectiveStrength, reinforce } from './decay.js';
 import { createEmbedder } from './embed.js';
 import { createLinks } from './links.js';
@@ -11,7 +11,6 @@ import { findSimilar } from './versioning.js';
 
 import type { MemoryConfig } from './config.js';
 import type {
-  EmbedFunction,
   ListOptions,
   Memory,
   MemoryLink,
@@ -23,7 +22,7 @@ import type {
 
 interface MemoryInstance {
   forget: (id: string) => void;
-  get: (id: string) => Memory | null;
+  get: (id: string) => Memory | undefined;
   history: (id: string) => Memory[];
   link: (
     sourceId: string,
@@ -49,13 +48,13 @@ interface VectorRow {
 
 function createMemory(input?: MemoryConfig): MemoryInstance {
   const config = resolveConfig(input);
-  const db = new BetterSqlite3(config.path);
-  createSchema(db);
+  const database = new BetterSqlite3(config.path);
+  createSchema(database);
 
-  const store = createStore(db, config);
-  const links = createLinks(db, config);
+  const store = createStore(database, config);
+  const links = createLinks(database, config);
   const embedder = createEmbedder(config.embed);
-  const searcher = createSearch(db, config, store, links, embedder);
+  const searcher = createSearch(database, config, store, links, embedder);
 
   async function remember(
     type: string,
@@ -65,7 +64,7 @@ function createMemory(input?: MemoryConfig): MemoryInstance {
     const embedding = await embedder.embed(content);
 
     // Load all current memories with their vectors
-    const vectorRows = db
+    const vectorRows = database
       .prepare(
         'SELECT mv.memory_id, mv.embedding FROM memory_vectors mv JOIN memories m ON m.id = mv.memory_id WHERE m.current = 1',
       )
@@ -76,7 +75,7 @@ function createMemory(input?: MemoryConfig): MemoryInstance {
       id: row.memory_id,
       version:
         (
-          db
+          database
             .prepare('SELECT version FROM memories WHERE id = ?')
             .get(row.memory_id) as { version: number } | undefined
         )?.version ?? 1,
@@ -95,26 +94,28 @@ function createMemory(input?: MemoryConfig): MemoryInstance {
 
     if (match) {
       // Fetch previous version's stored strength and updated timestamp
-      const prev = db
+      const previous = database
         .prepare('SELECT strength, updated FROM memories WHERE id = ?')
         .get(match.id) as { strength: number; updated: string } | undefined;
 
       const now = config.clock();
-      const prevStrength = prev?.strength ?? resolvedStrength;
-      const prevUpdated = prev ? new Date(prev.updated) : now;
-      const prevEffective = effectiveStrength(
-        prevStrength,
-        daysBetween(prevUpdated, now),
+      const previousStrength = previous?.strength ?? resolvedStrength;
+      const previousUpdated = previous ? new Date(previous.updated) : now;
+      const previousEffective = effectiveStrength(
+        previousStrength,
+        daysBetween(previousUpdated, now),
         config.decayRate,
       );
       const boostedStrength = Math.min(
-        1.0,
-        prevEffective + config.reinforcementBoost,
+        1,
+        previousEffective + config.reinforcementBoost,
       );
       const finalStrength = Math.max(resolvedStrength, boostedStrength);
 
       // Mark old as non-current
-      db.prepare('UPDATE memories SET current = 0 WHERE id = ?').run(match.id);
+      database
+        .prepare('UPDATE memories SET current = 0 WHERE id = ?')
+        .run(match.id);
 
       // Insert new version with auto-boosted strength
       result = store.insert({
@@ -134,16 +135,18 @@ function createMemory(input?: MemoryConfig): MemoryInstance {
 
     // Store embedding
     const blob = embedder.toBlob(embedding);
-    db.prepare(
-      'INSERT INTO memory_vectors (memory_id, embedding) VALUES (?, ?)',
-    ).run(result.id, blob);
+    database
+      .prepare(
+        'INSERT INTO memory_vectors (memory_id, embedding) VALUES (?, ?)',
+      )
+      .run(result.id, blob);
 
     return result;
   }
 
-  function get(id: string): Memory | null {
+  function get(id: string): Memory | undefined {
     const memory = store.get(id);
-    if (!memory) return null;
+    if (!memory) return undefined;
 
     const now = config.clock();
 
@@ -156,15 +159,15 @@ function createMemory(input?: MemoryConfig): MemoryInstance {
       );
 
       if (effective < config.evictionThreshold) {
-        return null;
+        return undefined;
       }
 
       const reinforced = reinforce(effective, config.reinforcementBoost);
 
       // Update DB with reinforced strength and updated timestamp
-      db.prepare(
-        'UPDATE memories SET strength = ?, updated = ? WHERE id = ?',
-      ).run(reinforced, now.toISOString(), id);
+      database
+        .prepare('UPDATE memories SET strength = ?, updated = ? WHERE id = ?')
+        .run(reinforced, now.toISOString(), id);
 
       return { ...memory, strength: reinforced };
     }
@@ -241,14 +244,15 @@ function createMemory(input?: MemoryConfig): MemoryInstance {
 }
 
 export { createMemory };
-export type {
-  EmbedFunction,
-  ListOptions,
-  MemoryConfig,
-  MemoryInstance,
-  MemoryLink,
-  RelatedOptions,
-  RememberResult,
-  SearchOptions,
-  SearchResult,
-};
+export type { MemoryInstance };
+
+export {
+  type EmbedFunction,
+  type ListOptions,
+  type MemoryLink,
+  type RelatedOptions,
+  type RememberResult,
+  type SearchOptions,
+  type SearchResult,
+} from './types.js';
+export { type MemoryConfig } from './config.js';

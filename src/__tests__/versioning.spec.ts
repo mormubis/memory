@@ -5,15 +5,15 @@ import { cosineSimilarity, findSimilar } from '../versioning.js';
 describe('cosineSimilarity', () => {
   it('returns 1.0 for identical vectors', () => {
     const v = [1, 2, 3];
-    expect(cosineSimilarity(v, v)).toBeCloseTo(1.0);
+    expect(cosineSimilarity(v, v)).toBeCloseTo(1);
   });
 
   it('returns 0.0 for orthogonal vectors', () => {
-    expect(cosineSimilarity([1, 0, 0], [0, 1, 0])).toBeCloseTo(0.0);
+    expect(cosineSimilarity([1, 0, 0], [0, 1, 0])).toBeCloseTo(0);
   });
 
   it('returns -1.0 for opposite vectors', () => {
-    expect(cosineSimilarity([1, 0, 0], [-1, 0, 0])).toBeCloseTo(-1.0);
+    expect(cosineSimilarity([1, 0, 0], [-1, 0, 0])).toBeCloseTo(-1);
   });
 
   it('handles zero vector returning 0', () => {
@@ -22,9 +22,9 @@ describe('cosineSimilarity', () => {
 
   it('works for high-dimensional vectors', () => {
     const dim = 384;
-    const a = Array.from({ length: dim }, (_, i) => Math.sin(i));
-    const b = Array.from({ length: dim }, (_, i) => Math.sin(i));
-    expect(cosineSimilarity(a, b)).toBeCloseTo(1.0);
+    const a = Array.from({ length: dim }, (_, index) => Math.sin(index));
+    const b = Array.from({ length: dim }, (_, index) => Math.sin(index));
+    expect(cosineSimilarity(a, b)).toBeCloseTo(1);
   });
 
   it('computes partial similarity correctly', () => {
@@ -36,8 +36,8 @@ describe('cosineSimilarity', () => {
 });
 
 describe('findSimilar', () => {
-  it('returns null for empty candidates', () => {
-    expect(findSimilar([1, 0, 0], [], 0.8)).toBeNull();
+  it('returns undefined for empty candidates', () => {
+    expect(findSimilar([1, 0, 0], [], 0.8)).toBeUndefined();
   });
 
   it('returns best match above threshold', () => {
@@ -47,15 +47,15 @@ describe('findSimilar', () => {
     ];
     const query = [1, 0, 0];
     const result = findSimilar(query, candidates, 0.8);
-    expect(result).not.toBeNull();
+    expect(result).toBeDefined();
     expect(result?.id).toBe('a');
-    expect(result?.similarity).toBeCloseTo(1.0);
+    expect(result?.similarity).toBeCloseTo(1);
   });
 
-  it('returns null when all candidates below threshold', () => {
+  it('returns undefined when all candidates below threshold', () => {
     const candidates = [{ embedding: [0, 1, 0], id: 'a', version: 1 }];
     const result = findSimilar([1, 0, 0], candidates, 0.9);
-    expect(result).toBeNull();
+    expect(result).toBeUndefined();
   });
 
   it('picks highest similarity when multiple above threshold', () => {

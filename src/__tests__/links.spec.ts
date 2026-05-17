@@ -2,25 +2,25 @@ import Database from 'better-sqlite3';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { resolveConfig } from '../config.js';
-import { createSchema } from '../db.js';
+import { createSchema } from '../database.js';
 import { createLinks } from '../links.js';
 import { createStore } from '../store.js';
 
 import type { Links } from '../links.js';
 
 describe('createLinks', () => {
-  let db: Database.Database;
+  let database: Database.Database;
   let links: Links;
   let idA: string;
   let idB: string;
   let idC: string;
 
   beforeEach(() => {
-    db = new Database(':memory:');
-    createSchema(db);
+    database = new Database(':memory:');
+    createSchema(database);
     const config = resolveConfig();
-    const store = createStore(db, config);
-    links = createLinks(db, config);
+    const store = createStore(database, config);
+    links = createLinks(database, config);
 
     idA = store.insert({ content: 'memory A', type: 'fact' }).id;
     idB = store.insert({ content: 'memory B', type: 'fact' }).id;

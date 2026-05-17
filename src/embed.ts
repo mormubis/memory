@@ -6,7 +6,21 @@ interface Embedder {
   toBlob: (vector: number[]) => Buffer;
 }
 
-function createEmbedder(customEmbed: EmbedFunction | null): Embedder {
+function toBlob(vector: number[]): Buffer {
+  const float32 = new Float32Array(vector);
+  return Buffer.from(float32.buffer);
+}
+
+function fromBlob(blob: Buffer): number[] {
+  const float32 = new Float32Array(
+    blob.buffer,
+    blob.byteOffset,
+    blob.byteLength / 4,
+  );
+  return [...float32];
+}
+
+function createEmbedder(customEmbed: EmbedFunction | undefined): Embedder {
   async function embed(text: string): Promise<number[]> {
     if (customEmbed) {
       return customEmbed(text);
@@ -18,21 +32,7 @@ function createEmbedder(customEmbed: EmbedFunction | null): Embedder {
       'Xenova/all-MiniLM-L6-v2',
     );
     const output = await extractor(text, { normalize: true, pooling: 'mean' });
-    return Array.from(output.data as Float32Array);
-  }
-
-  function toBlob(vector: number[]): Buffer {
-    const float32 = new Float32Array(vector);
-    return Buffer.from(float32.buffer);
-  }
-
-  function fromBlob(blob: Buffer): number[] {
-    const float32 = new Float32Array(
-      blob.buffer,
-      blob.byteOffset,
-      blob.byteLength / 4,
-    );
-    return Array.from(float32);
+    return [...(output.data as Float32Array)];
   }
 
   return { embed, fromBlob, toBlob };

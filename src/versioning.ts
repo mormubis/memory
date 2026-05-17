@@ -14,9 +14,9 @@ function cosineSimilarity(a: number[], b: number[]): number {
   let dot = 0;
   let normA = 0;
   let normB = 0;
-  for (let i = 0; i < a.length; i++) {
-    const ai = a[i] ?? 0;
-    const bi = b[i] ?? 0;
+  for (const [index, element] of a.entries()) {
+    const ai = element ?? 0;
+    const bi = b[index] ?? 0;
     dot += ai * bi;
     normA += ai * ai;
     normB += bi * bi;
@@ -32,8 +32,8 @@ function findSimilar(
   queryEmbedding: number[],
   candidates: VersionCandidate[],
   threshold: number,
-): SimilarMatch | null {
-  let best: SimilarMatch | null = null;
+): SimilarMatch | undefined {
+  let best: SimilarMatch | undefined;
   for (const candidate of candidates) {
     const similarity = cosineSimilarity(queryEmbedding, candidate.embedding);
     if (similarity >= threshold && (!best || similarity > best.similarity)) {
