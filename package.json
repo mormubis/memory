@@ -27,7 +27,8 @@
     "test:coverage": "vitest run --coverage",
     "lint": "eslint 'src/**/*.ts' '*.mjs' --fix && tsc --noEmit",
     "lint:ci": "eslint 'src/**/*.ts' '*.mjs' --max-warnings 0 && tsc --noEmit",
-    "format": "prettier --write '**/*'"
+    "format": "prettier --write '**/*'",
+    "format:ci": "prettier --check '**/*'"
   },
   "dependencies": {
     "better-sqlite3": "^11.0.0"
