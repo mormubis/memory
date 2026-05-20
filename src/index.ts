@@ -249,6 +249,7 @@ export type { MemoryInstance };
 export {
   type EmbedFunction,
   type ListOptions,
+  type Memory,
   type MemoryLink,
   type RelatedOptions,
   type RememberResult,
