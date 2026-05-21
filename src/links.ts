@@ -37,12 +37,21 @@ function createLinks(
   database: Database.Database,
   config: ResolvedConfig,
 ): Links {
+  const existsStmt = database.prepare('SELECT id FROM memories WHERE id = ?');
+
   function link(
     sourceId: string,
     targetId: string,
     relation: string,
     weight = 1,
   ): void {
+    if (!existsStmt.get(sourceId)) {
+      throw new Error(`sourceId "${sourceId}" does not exist`);
+    }
+    if (!existsStmt.get(targetId)) {
+      throw new Error(`targetId "${targetId}" does not exist`);
+    }
+
     const now = config.clock().toISOString();
     database
       .prepare(

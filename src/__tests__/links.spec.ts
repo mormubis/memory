@@ -49,6 +49,36 @@ describe('createLinks', () => {
       const result = links.related(idA);
       expect(result).toHaveLength(2);
     });
+
+    it('throws when sourceId does not exist', () => {
+      expect(() => links.link('nonexistent', idB, 'related')).toThrow(
+        'sourceId "nonexistent" does not exist',
+      );
+    });
+
+    it('throws when targetId does not exist', () => {
+      expect(() => links.link(idA, 'nonexistent', 'related')).toThrow(
+        'targetId "nonexistent" does not exist',
+      );
+    });
+
+    it('throws when both IDs do not exist', () => {
+      expect(() => links.link('bad-source', 'bad-target', 'related')).toThrow(
+        'sourceId "bad-source" does not exist',
+      );
+    });
+
+    it('does not insert a link when validation fails', () => {
+      try {
+        links.link('nonexistent', idB, 'related');
+      } catch {
+        // expected
+      }
+      const rows = database
+        .prepare('SELECT COUNT(*) as count FROM memory_links')
+        .get() as { count: number };
+      expect(rows.count).toBe(0);
+    });
   });
 
   describe('unlink', () => {
