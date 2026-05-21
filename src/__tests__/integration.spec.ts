@@ -309,6 +309,46 @@ describe('createMemory', () => {
     });
   });
 
+  describe('reindex', () => {
+    it('embeds current memories missing from memory_vectors', async () => {
+      const { memory } = setup();
+      const r1 = await memory.remember('fact', 'the sky is blue');
+      const r2 = await memory.remember('fact', 'grass is green');
+
+      // Delete embeddings to simulate orphaned memories
+      memory.deleteVectors([r1.id, r2.id]);
+
+      // Reindex should find and embed both
+      const count = await memory.reindex();
+      expect(count).toBe(2);
+
+      // A second reindex should find nothing to do
+      const again = await memory.reindex();
+      expect(again).toBe(0);
+    });
+
+    it('skips memories that already have embeddings', async () => {
+      const { memory } = setup();
+      await memory.remember('fact', 'the sky is blue');
+
+      const count = await memory.reindex();
+      expect(count).toBe(0);
+    });
+
+    it('skips non-current memories', async () => {
+      const { memory } = setup(0);
+      await memory.remember('fact', 'original content');
+      const v2 = await memory.remember('fact', 'updated content');
+
+      // Delete only v2's embedding
+      memory.deleteVectors([v2.id]);
+
+      const count = await memory.reindex();
+      // Should only reindex v2 (the current one), not v1
+      expect(count).toBe(1);
+    });
+  });
+
   describe('forget', () => {
     it('hard deletes a memory', async () => {
       const { memory } = setup();

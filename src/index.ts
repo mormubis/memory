@@ -21,6 +21,7 @@ import type {
 } from './types.js';
 
 interface MemoryInstance {
+  deleteVectors: (ids: string[]) => void;
   forget: (id: string) => void;
   get: (id: string) => Memory | undefined;
   history: (id: string) => Memory[];
@@ -31,6 +32,7 @@ interface MemoryInstance {
     weight?: number,
   ) => void;
   list: (options?: ListOptions) => Memory[];
+  reindex: () => Promise<number>;
   related: (id: string, options?: RelatedOptions) => MemoryLink[];
   remember: (
     type: string,
@@ -243,12 +245,45 @@ function createMemory(input?: MemoryConfig): MemoryInstance {
     return searcher.search(query, options);
   }
 
+  async function reindex(): Promise<number> {
+    const orphans = database
+      .prepare(
+        `SELECT id, content FROM memories
+         WHERE current = 1
+         AND id NOT IN (SELECT memory_id FROM memory_vectors)`,
+      )
+      .all() as { content: string; id: string }[];
+
+    for (const orphan of orphans) {
+      const embedding = await embedder.embed(orphan.content);
+      const blob = embedder.toBlob(embedding);
+      database
+        .prepare(
+          'INSERT INTO memory_vectors (memory_id, embedding) VALUES (?, ?)',
+        )
+        .run(orphan.id, blob);
+    }
+
+    return orphans.length;
+  }
+
+  function deleteVectors(ids: string[]): void {
+    const stmt = database.prepare(
+      'DELETE FROM memory_vectors WHERE memory_id = ?',
+    );
+    for (const id of ids) {
+      stmt.run(id);
+    }
+  }
+
   return {
+    deleteVectors,
     forget,
     get,
     history,
     link,
     list,
+    reindex,
     related,
     remember,
     search,
