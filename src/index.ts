@@ -125,6 +125,19 @@ function createMemory(input?: MemoryConfig): MemoryInstance {
         type,
         version: match.version + 1,
       });
+
+      // Migrate links from old memory to new version
+      const nowIso = now.toISOString();
+      database
+        .prepare(
+          `UPDATE OR REPLACE memory_links SET source_id = ?, updated = ? WHERE source_id = ?`,
+        )
+        .run(result.id, nowIso, match.id);
+      database
+        .prepare(
+          `UPDATE OR REPLACE memory_links SET target_id = ?, updated = ? WHERE target_id = ?`,
+        )
+        .run(result.id, nowIso, match.id);
     } else {
       result = store.insert({
         content,

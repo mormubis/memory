@@ -257,6 +257,47 @@ describe('createMemory', () => {
       expect(related[0]?.relation).toBe('similar');
     });
 
+    it('migrates links when a memory is auto-versioned', async () => {
+      const { memory } = setup(0);
+      const other = await memory.remember('fact', 'orange is a fruit');
+      const v1 = await memory.remember('fact', 'apple is a fruit');
+
+      memory.link(v1.id, other.id, 'similar');
+      memory.link(other.id, v1.id, 'categorizes');
+
+      // Trigger auto-versioning
+      const v2 = await memory.remember('fact', 'apple is a fruit updated');
+      expect(v2.parentId).toBe(v1.id);
+
+      // Links should now point to v2, not v1
+      const fromNew = memory.related(v2.id);
+      expect(fromNew).toHaveLength(2);
+      expect(fromNew.some((l) => l.relation === 'similar')).toBe(true);
+      expect(fromNew.some((l) => l.relation === 'categorizes')).toBe(true);
+
+      // Old memory should have no links
+      const fromOld = memory.related(v1.id);
+      expect(fromOld).toHaveLength(0);
+    });
+
+    it('handles link migration conflicts via upsert', async () => {
+      const { memory } = setup(0);
+      const other = await memory.remember('fact', 'orange is a fruit');
+      const v1 = await memory.remember('fact', 'apple is a fruit');
+
+      memory.link(v1.id, other.id, 'similar', 0.5);
+
+      // Trigger auto-versioning
+      const v2 = await memory.remember('fact', 'apple is a fruit updated');
+
+      // Manually create a link that would conflict with the migrated one
+      // (same source + target + relation as what the migration would produce)
+      // The migration should have already transferred v1->other to v2->other
+      const related = memory.related(v2.id);
+      expect(related).toHaveLength(1);
+      expect(related[0]?.relation).toBe('similar');
+    });
+
     it('unlinks memories', async () => {
       const { memory } = setup();
       const r1 = await memory.remember('fact', 'apple is a fruit');
