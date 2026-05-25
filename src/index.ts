@@ -2,7 +2,7 @@ import BetterSqlite3 from 'better-sqlite3';
 
 import { resolveConfig } from './config.js';
 import { createSchema } from './database.js';
-import { daysBetween, effectiveStrength, reinforce } from './decay.js';
+import { daysBetween, effectiveStrength } from './decay.js';
 import { createEmbedder } from './embed.js';
 import { createLinks } from './links.js';
 import { createSearch } from './search.js';
@@ -177,14 +177,7 @@ function createMemory(input?: MemoryConfig): MemoryInstance {
         return undefined;
       }
 
-      const reinforced = reinforce(effective, config.reinforcementBoost);
-
-      // Update DB with reinforced strength and updated timestamp
-      database
-        .prepare('UPDATE memories SET strength = ?, updated = ? WHERE id = ?')
-        .run(reinforced, now.toISOString(), id);
-
-      return { ...memory, strength: reinforced };
+      return { ...memory, strength: effective };
     }
 
     return memory;

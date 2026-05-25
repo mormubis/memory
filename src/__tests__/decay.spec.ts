@@ -31,15 +31,31 @@ describe('effectiveStrength', () => {
 });
 
 describe('reinforce', () => {
-  it('boosts effective strength by boost amount', () => {
-    expect(reinforce(0.5, 0.1)).toBeCloseTo(0.6);
+  it('applies boost inversely proportional to current strength', () => {
+    // boost * (1 - strength) = 0.1 * (1 - 0.5) = 0.05
+    // result = 0.5 + 0.05 = 0.55
+    expect(reinforce(0.5, 0.1)).toBeCloseTo(0.55);
   });
 
-  it('caps at 1.0', () => {
-    expect(reinforce(0.95, 0.1)).toBe(1);
+  it('gives larger boost to weaker memories', () => {
+    // boost * (1 - 0.2) = 0.1 * 0.8 = 0.08
+    // result = 0.2 + 0.08 = 0.28
+    expect(reinforce(0.2, 0.1)).toBeCloseTo(0.28);
   });
 
-  it('caps at 1.0 even with large boost', () => {
-    expect(reinforce(0.5, 0.8)).toBe(1);
+  it('gives smaller boost to stronger memories', () => {
+    // boost * (1 - 0.9) = 0.1 * 0.1 = 0.01
+    // result = 0.9 + 0.01 = 0.91
+    expect(reinforce(0.9, 0.1)).toBeCloseTo(0.91);
+  });
+
+  it('gives zero boost at maximum strength', () => {
+    // boost * (1 - 1.0) = 0
+    expect(reinforce(1, 0.1)).toBe(1);
+  });
+
+  it('never exceeds 1.0', () => {
+    // Even with a large boost, result should cap at 1.0
+    expect(reinforce(0.5, 0.8)).toBeLessThanOrEqual(1);
   });
 });

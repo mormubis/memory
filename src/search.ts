@@ -1,4 +1,4 @@
-import { daysBetween, effectiveStrength } from './decay.js';
+import { daysBetween, effectiveStrength, reinforce } from './decay.js';
 
 import type { ResolvedConfig } from './config.js';
 import type { Embedder } from './embed.js';
@@ -244,6 +244,21 @@ function createSearch(
       if (diversified.length >= limit) {
         break;
       }
+    }
+
+    // --- Reinforce returned memories ---
+    const reinforceStmt = database.prepare(
+      'UPDATE memories SET strength = ?, updated = ? WHERE id = ?',
+    );
+    const nowIso = now.toISOString();
+
+    for (const result of diversified) {
+      const reinforced = reinforce(
+        result.memory.strength,
+        config.reinforcementBoost,
+      );
+      reinforceStmt.run(reinforced, nowIso, result.memory.id);
+      result.memory.strength = reinforced;
     }
 
     return diversified;

@@ -162,12 +162,13 @@ describe('createMemory', () => {
       expect(memory.get('nonexistent')).toBeUndefined();
     });
 
-    it('reinforces strength on access', async () => {
+    it('does not reinforce strength on access', async () => {
       const { memory } = setup();
       const { id } = await memory.remember('fact', 'the sky is blue', 0.5);
-      const mem = memory.get(id);
-      // strength should be reinforced (≥ 0.5)
-      expect(mem?.strength).toBeGreaterThanOrEqual(0.5);
+      const first = memory.get(id);
+      const second = memory.get(id);
+      // get() is read-only: repeated access should not increase strength
+      expect(second?.strength).toBe(first?.strength);
     });
   });
 
@@ -205,6 +206,24 @@ describe('createMemory', () => {
       expect(results.length).toBeGreaterThan(0);
       // BM25 should rank the fox content first
       expect(results[0]?.memory.content).toContain('fox');
+    });
+  });
+
+  describe('search reinforcement', () => {
+    it('reinforces returned memories after search', async () => {
+      const { memory } = setup();
+      const { id } = await memory.remember(
+        'fact',
+        'the quick brown fox jumps',
+        0.5,
+      );
+
+      const beforeSearch = memory.get(id);
+      await memory.search('fox');
+      const afterSearch = memory.get(id);
+
+      // search() should have reinforced the memory in the DB
+      expect(afterSearch?.strength).toBeGreaterThan(beforeSearch!.strength);
     });
   });
 
