@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { resolveConfig } from '../config.js';
 import { createSchema } from '../database.js';
+import { effectiveStrength } from '../decay.js';
 import { createStore } from '../store.js';
 
 import type { Store } from '../store.js';
@@ -115,6 +116,92 @@ describe('createStore', () => {
       const results = store.list({ maxStrength: 0.5 });
       expect(results).toHaveLength(1);
       expect(results[0]?.content).toBe('weak');
+    });
+
+    describe('decay', () => {
+      it('applies Ebbinghaus decay to returned memories', () => {
+        const t0 = new Date('2024-01-01T00:00:00Z');
+        const t30 = new Date('2024-01-31T00:00:00Z');
+        let now = t0;
+
+        const database_ = new Database(':memory:');
+        createSchema(database_);
+        const config = resolveConfig({ clock: () => now, decayRate: 0.99 });
+        const timeStore = createStore(database_, config);
+
+        timeStore.insert({ content: 'test', type: 'fact', strength: 0.8 });
+
+        now = t30;
+        const results = timeStore.list();
+
+        expect(results[0]?.strength).toBeCloseTo(
+          effectiveStrength(0.8, 30, 0.99),
+          5,
+        );
+      });
+
+      it('writes decayed strength back to the database', () => {
+        const t0 = new Date('2024-01-01T00:00:00Z');
+        const t30 = new Date('2024-01-31T00:00:00Z');
+        let now = t0;
+
+        const database_ = new Database(':memory:');
+        createSchema(database_);
+        const config = resolveConfig({ clock: () => now, decayRate: 0.99 });
+        const timeStore = createStore(database_, config);
+
+        const { id } = timeStore.insert({
+          content: 'test',
+          type: 'fact',
+          strength: 0.8,
+        });
+
+        now = t30;
+        timeStore.list();
+
+        const row = database_
+          .prepare('SELECT strength FROM memories WHERE id = ?')
+          .get(id) as { strength: number };
+        expect(row.strength).toBeCloseTo(effectiveStrength(0.8, 30, 0.99), 5);
+      });
+
+      it('minStrength filter uses effective strength, not stored', () => {
+        const t0 = new Date('2024-01-01T00:00:00Z');
+        const t30 = new Date('2024-01-31T00:00:00Z');
+        let now = t0;
+
+        const database_ = new Database(':memory:');
+        createSchema(database_);
+        // stored=0.5, after 30 days at 0.99: 0.5*0.99^30 ≈ 0.370
+        const config = resolveConfig({ clock: () => now, decayRate: 0.99 });
+        const timeStore = createStore(database_, config);
+
+        timeStore.insert({ content: 'test', type: 'fact', strength: 0.5 });
+
+        now = t30;
+        // effective ≈ 0.370 < 0.4, so should be excluded
+        const results = timeStore.list({ minStrength: 0.4 });
+        expect(results).toHaveLength(0);
+      });
+
+      it('maxStrength filter uses effective strength, not stored', () => {
+        const t0 = new Date('2024-01-01T00:00:00Z');
+        const t30 = new Date('2024-01-31T00:00:00Z');
+        let now = t0;
+
+        const database_ = new Database(':memory:');
+        createSchema(database_);
+        // stored=0.5 > maxStrength=0.4, but after 30 days: 0.5*0.99^30 ≈ 0.370 < 0.4
+        const config = resolveConfig({ clock: () => now, decayRate: 0.99 });
+        const timeStore = createStore(database_, config);
+
+        timeStore.insert({ content: 'test', type: 'fact', strength: 0.5 });
+
+        now = t30;
+        // effective ≈ 0.370 < 0.4, so should now pass maxStrength
+        const results = timeStore.list({ maxStrength: 0.4 });
+        expect(results).toHaveLength(1);
+      });
     });
   });
 

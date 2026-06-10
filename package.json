@@ -1,7 +1,7 @@
 {
   "name": "@mormubis/memory",
   "type": "module",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Memory infrastructure library — store, version, search, and decay knowledge over time",
   "repository": {
     "type": "git",

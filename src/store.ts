@@ -1,3 +1,4 @@
+import { daysBetween, effectiveStrength } from './decay.js';
 import { generateId } from './id.js';
 
 import type { ResolvedConfig } from './config.js';
@@ -102,23 +103,50 @@ function createStore(
       conditions.push('type = ?');
       parameters.push(options.type);
     }
-    if (options?.minStrength !== undefined) {
-      conditions.push('strength >= ?');
-      parameters.push(options.minStrength);
-    }
-    if (options?.maxStrength !== undefined) {
-      conditions.push('strength <= ?');
-      parameters.push(options.maxStrength);
-    }
+    // minStrength and maxStrength are NOT added to SQL — they must be applied
+    // in-memory after computing effective (decayed) strength, since the stored
+    // value is stale and may no longer reflect the true current strength.
 
-    let sql = `SELECT * FROM memories WHERE ${conditions.join(' AND ')} ORDER BY created DESC`;
-    if (options?.limit !== undefined) {
-      sql += ' LIMIT ?';
-      parameters.push(options.limit);
-    }
-
+    const sql = `SELECT * FROM memories WHERE ${conditions.join(' AND ')} ORDER BY created DESC`;
     const rows = database.prepare(sql).all(...parameters) as MemoryRow[];
-    return rows.map((row) => rowToMemory(row));
+
+    const now = config.clock();
+    const nowIso = now.toISOString();
+    const decayStmt = database.prepare(
+      'UPDATE memories SET strength = ?, updated = ? WHERE id = ?',
+    );
+
+    const memories: Memory[] = [];
+    for (const row of rows) {
+      const days = daysBetween(new Date(row.updated), now);
+      const effective = effectiveStrength(row.strength, days, config.decayRate);
+
+      if (
+        options?.minStrength !== undefined &&
+        effective < options.minStrength
+      ) {
+        continue;
+      }
+      if (
+        options?.maxStrength !== undefined &&
+        effective > options.maxStrength
+      ) {
+        continue;
+      }
+
+      // Persist the decayed strength so the DB reflects the true current value.
+      // Updating `updated` resets the decay baseline for subsequent reads.
+      decayStmt.run(effective, nowIso, row.id);
+      memories.push(
+        rowToMemory({ ...row, strength: effective, updated: nowIso }),
+      );
+
+      if (options?.limit !== undefined && memories.length >= options.limit) {
+        break;
+      }
+    }
+
+    return memories;
   }
 
   function forget(id: string): void {

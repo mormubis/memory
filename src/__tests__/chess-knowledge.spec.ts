@@ -156,25 +156,21 @@ describe('chess knowledge base', () => {
       const all = memory.list();
       const versioned = all.filter((m) => m.version > 1);
 
-      const chainsWithMultipleVersions = versioned
-        .map((m) => memory.history(m.id))
-        .filter((chain) => chain.length >= 2);
+      const typeStrengths: Record<string, number> = {
+        constraint: 0.7,
+        decision: 0.7,
+        entity: 0.5,
+        pattern: 0.5,
+        rule: 0.6,
+        standard: 0.6,
+      };
 
-      for (const chain of chainsWithMultipleVersions) {
-        const current = chain[0]!;
-        const baseStrength =
-          (
-            {
-              constraint: 0.7,
-              decision: 0.7,
-              entity: 0.5,
-              pattern: 0.5,
-              rule: 0.6,
-              standard: 0.6,
-            } as Record<string, number>
-          )[current.type] ?? 0.2;
-        // reinforced on get(), so at least base strength
-        expect(current.strength).toBeGreaterThanOrEqual(baseStrength);
+      expect(versioned.length).toBeGreaterThan(0);
+      for (const m of versioned) {
+        const baseStrength = typeStrengths[m.type] ?? 0.2;
+        // list() now persists decay back to the DB. The fixture spans ~42 min;
+        // at 0.99/day that is <0.03% decay, so 0.999 * baseStrength is a safe floor.
+        expect(m.strength).toBeGreaterThanOrEqual(baseStrength * 0.999);
       }
     });
   });

@@ -1,5 +1,60 @@
 # Changelog
 
+## [0.4.1] - 2026-06-10
+
+### Fixed
+
+- `list()` now persists lazy Ebbinghaus decay back to the database. Previously,
+  effective strength was computed on each read but the stored value was never
+  updated, so the DB drifted from the true current strength indefinitely.
+- `minStrength` and `maxStrength` filters in `list()` now run against the
+  effective (decayed) strength rather than the stale stored value. The
+  `maxStrength` SQL pre-filter was incorrectly excluding memories whose stored
+  strength exceeded the threshold but whose effective strength had decayed below
+  it.
+
+## [0.4.0] - 2026-05-25
+
+### Changed
+
+- Reinforcement on read moved from `get()` to `search()`. `get()` is now
+  read-only: it returns decayed strength without writing back.
+- `reinforce()` uses an inversely proportional boost: `boost * (1 - strength)`,
+  so weaker memories receive larger boosts and stronger ones receive smaller
+  ones.
+
+## [0.3.0] - 2026-05-21
+
+### Added
+
+- `reindex()` on `MemoryInstance`: finds current memories missing from
+  `memory_vectors`, generates embeddings for them, and returns the count of
+  reindexed entries.
+- `deleteVectors()` on `MemoryInstance`: removes embedding rows by ID, useful
+  for testing and repair scenarios.
+
+## [0.2.1] - 2026-05-21
+
+### Fixed
+
+- Links now migrate to the new memory ID when `remember()` auto-versions a
+  memory. Previously, links stayed on the old (non-current) ID and became
+  unreachable.
+
+## [0.2.0] - 2026-05-21
+
+### Fixed
+
+- `link()` now validates that both `sourceId` and `targetId` exist before
+  inserting into `memory_links`. Throws a descriptive error if either ID is not
+  found.
+
+## [0.1.2] - 2026-05-20
+
+### Fixed
+
+- `Memory` type is now exported from the package entry point.
+
 ## [0.1.1] - 2026-05-17
 
 ### Changed
