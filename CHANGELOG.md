@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.4.2] - 2026-06-23
+
+### Fixed
+
+- Link expansion scores are now normalized to the same scale as RRF direct-match
+  scores. The old formula (`decayedWeight * 0.5`) produced absolute scores ~18×
+  higher than any direct match, causing link-expanded results to always outrank
+  directly-matched ones. The new formula is
+  `result.score * decayedWeight * effective`, where `effective` is the linked
+  memory's decayed strength.
+- Reinforcement boost is now proportional to result rank (`score / maxScore`)
+  and hub-dampened for link-expanded results (`1 / linkCount`). Memories with
+  many connections no longer accumulate strength just from being reachable — a
+  hub with 78 links receives 1/78 of the normal boost per appearance.
+- `SearchResult` now includes an `expanded: boolean` field indicating whether
+  the result came from a direct BM25/vector match or from link expansion.
+
 ## [0.4.1] - 2026-06-10
 
 ### Fixed
