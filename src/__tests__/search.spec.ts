@@ -126,5 +126,26 @@ describe('createSearch', () => {
       expect(results.length).toBeGreaterThan(0);
       expect(results[0]?.score).toBeGreaterThan(0);
     });
+
+    it('marks link-expanded results with expanded: true', async () => {
+      const a = await insertWithVector(store, embedder, database, {
+        content: 'the quick brown fox',
+        type: 'fact',
+      });
+      // b has a different type so it won't appear in a type-filtered primary search,
+      // but will appear via link expansion (which does not filter by type)
+      const b = await insertWithVector(store, embedder, database, {
+        content: 'completely unrelated content',
+        type: 'note',
+      });
+      links.link(a.id, b.id, 'related', 0.6);
+
+      const results = await searcher.search('fox', { limit: 5, type: 'fact' });
+      const direct = results.find((r) => r.memory.id === a.id);
+      const expanded = results.find((r) => r.memory.id === b.id);
+
+      expect(direct?.expanded).toBe(false);
+      expect(expanded?.expanded).toBe(true);
+    });
   });
 });

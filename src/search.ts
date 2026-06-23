@@ -160,6 +160,7 @@ function createSearch(
       }
 
       primary.push({
+        expanded: false,
         memory: { ...memory, strength: effective },
         score: rrfScore,
       });
@@ -203,6 +204,7 @@ function createSearch(
         const linkScore = decayedWeight * 0.5;
 
         expanded.push({
+          expanded: true,
           memory: { ...linkedMemory, strength: effective },
           score: linkScore,
         });
