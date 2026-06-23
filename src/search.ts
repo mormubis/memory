@@ -160,6 +160,7 @@ function createSearch(
       }
 
       primary.push({
+        expanded: false,
         memory: { ...memory, strength: effective },
         score: rrfScore,
       });
@@ -167,7 +168,8 @@ function createSearch(
 
     // --- Link expansion ---
     const primaryIds = new Set(primary.map((r) => r.memory.id));
-    const expanded: SearchResult[] = [];
+    const expandedResults: SearchResult[] = [];
+    const expandedLinkCounts = new Map<string, number>();
 
     for (const result of primary) {
       const relatedLinks = links.related(result.memory.id);
@@ -197,12 +199,17 @@ function createSearch(
           continue;
         }
 
-        // Link expansion score: decayed link weight * discount factor
+        // Link expansion score: source RRF score * decayed link weight * linked memory effective strength
+        // This keeps link-expanded results on the same scale as direct matches and ensures
+        // they never exceed the score of the source that surfaced them.
         const linkDays = daysBetween(new Date(link.updated), now);
         const decayedWeight = link.weight * config.decayRate ** linkDays;
-        const linkScore = decayedWeight * 0.5;
+        const linkScore = result.score * decayedWeight * effective;
 
-        expanded.push({
+        const linkedLinkCount = links.related(linkedId).length;
+        expandedLinkCounts.set(linkedId, linkedLinkCount);
+        expandedResults.push({
+          expanded: true,
           memory: { ...linkedMemory, strength: effective },
           score: linkScore,
         });
@@ -213,7 +220,7 @@ function createSearch(
     // --- Lineage diversification ---
     // Max 3 results from the same version chain to prevent one concept
     // from dominating results.
-    const all = [...primary, ...expanded];
+    const all = [...primary, ...expandedResults];
     all.sort((a, b) => b.score - a.score);
 
     const diversified: SearchResult[] = [];
@@ -251,12 +258,21 @@ function createSearch(
       'UPDATE memories SET strength = ?, updated = ? WHERE id = ?',
     );
     const nowIso = now.toISOString();
+    const maxScore = diversified[0]?.score ?? 1;
 
     for (const result of diversified) {
-      const reinforced = reinforce(
-        result.memory.strength,
-        config.reinforcementBoost,
-      );
+      const scoreFraction = result.score / maxScore;
+      // Hub dampening: link-expanded results receive less boost per appearance
+      // based on their total link degree (global, not query-local). Memories
+      // with many connections appear in more searches but are less specifically
+      // relevant to any one query.
+      const linkCount = result.expanded
+        ? Math.max(1, expandedLinkCounts.get(result.memory.id) ?? 1)
+        : 1;
+      const effectiveBoost =
+        config.reinforcementBoost * scoreFraction * (1 / linkCount);
+
+      const reinforced = reinforce(result.memory.strength, effectiveBoost);
       reinforceStmt.run(reinforced, nowIso, result.memory.id);
       result.memory.strength = reinforced;
     }

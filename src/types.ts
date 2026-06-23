@@ -20,6 +20,7 @@ interface MemoryLink {
 }
 
 interface SearchResult {
+  expanded: boolean;
   memory: Memory;
   score: number;
 }
