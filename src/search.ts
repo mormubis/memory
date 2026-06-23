@@ -255,12 +255,17 @@ function createSearch(
       'UPDATE memories SET strength = ?, updated = ? WHERE id = ?',
     );
     const nowIso = now.toISOString();
+    const maxScore = diversified[0]?.score ?? 1;
 
     for (const result of diversified) {
-      const reinforced = reinforce(
-        result.memory.strength,
-        config.reinforcementBoost,
-      );
+      const scoreFraction = result.score / maxScore;
+      const linkCount = result.expanded
+        ? Math.max(1, links.related(result.memory.id).length)
+        : 1;
+      const effectiveBoost =
+        config.reinforcementBoost * scoreFraction * (1 / linkCount);
+
+      const reinforced = reinforce(result.memory.strength, effectiveBoost);
       reinforceStmt.run(reinforced, nowIso, result.memory.id);
       result.memory.strength = reinforced;
     }

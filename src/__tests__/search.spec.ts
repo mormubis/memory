@@ -170,5 +170,101 @@ describe('createSearch', () => {
       expect(linkedResult).toBeDefined();
       expect(linkedResult!.score).toBeLessThanOrEqual(sourceResult!.score);
     });
+
+    it('direct match receives full proportional boost', async () => {
+      const config = resolveConfig({ embed: fakeEmbed });
+      const memory = await insertWithVector(store, embedder, database, {
+        content: 'the quick brown fox',
+        type: 'fact',
+      });
+      const initialStrength = store.get(memory.id)!.strength;
+
+      const results = await searcher.search('fox', { limit: 5 });
+      const result = results.find((r) => r.memory.id === memory.id)!;
+
+      // maxScore is the top result's score; for a single result it equals result.score
+      const maxScore = results[0]!.score;
+      const effectiveBoost =
+        config.reinforcementBoost * (result.score / maxScore);
+      const expectedStrength = Math.min(
+        1,
+        initialStrength + effectiveBoost * (1 - initialStrength),
+      );
+
+      const updated = store.get(memory.id)!;
+      expect(updated.strength).toBeCloseTo(expectedStrength, 6);
+    });
+
+    it('link-expanded result receives hub-dampened boost', async () => {
+      const config = resolveConfig({ embed: fakeEmbed });
+      const source = await insertWithVector(store, embedder, database, {
+        content: 'the quick brown fox',
+        type: 'fact',
+      });
+      const linked = await insertWithVector(store, embedder, database, {
+        content: 'unrelated linked memory',
+        type: 'note',
+      });
+      links.link(source.id, linked.id, 'related', 0.6);
+      const initialStrength = store.get(linked.id)!.strength;
+
+      const results = await searcher.search('fox', { limit: 5, type: 'fact' });
+      const linkedResult = results.find((r) => r.memory.id === linked.id)!;
+      const maxScore = results[0]!.score;
+
+      // linked has 1 link (to source), so linkCount = 1
+      const linkCount = Math.max(1, links.related(linked.id).length);
+      const effectiveBoost =
+        config.reinforcementBoost *
+        (linkedResult.score / maxScore) *
+        (1 / linkCount);
+      const expectedStrength = Math.min(
+        1,
+        initialStrength + effectiveBoost * (1 - initialStrength),
+      );
+
+      const updated = store.get(linked.id)!;
+      expect(updated.strength).toBeCloseTo(expectedStrength, 6);
+    });
+
+    it('hub memory receives less boost than targeted memory', async () => {
+      const source = await insertWithVector(store, embedder, database, {
+        content: 'the quick brown fox',
+        type: 'fact',
+      });
+
+      // hub: linked to source + 10 others (type 'note' to stay out of primary pool)
+      const hub = await insertWithVector(store, embedder, database, {
+        content: 'unrelated hub memory',
+        type: 'note',
+      });
+      links.link(source.id, hub.id, 'related', 1);
+      for (let index = 0; index < 10; index++) {
+        const other = store.insert({
+          content: `other memory ${index}`,
+          type: 'fact',
+        });
+        links.link(hub.id, other.id, 'related', 0.5);
+      }
+
+      // targeted: linked to source only (type 'note' to stay out of primary pool)
+      const targeted = await insertWithVector(store, embedder, database, {
+        content: 'unrelated targeted memory',
+        type: 'note',
+      });
+      links.link(source.id, targeted.id, 'related', 1);
+
+      const hubInitial = store.get(hub.id)!.strength;
+      const targetedInitial = store.get(targeted.id)!.strength;
+
+      await searcher.search('fox', { limit: 10, type: 'fact' });
+
+      const hubStrengthDelta = store.get(hub.id)!.strength - hubInitial;
+      const targetedStrengthDelta =
+        store.get(targeted.id)!.strength - targetedInitial;
+
+      // hub has 11 links vs targeted's 1 — hub receives less boost per appearance
+      expect(targetedStrengthDelta).toBeGreaterThan(hubStrengthDelta);
+    });
   });
 });
