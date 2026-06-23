@@ -39,6 +39,7 @@ async function insertWithVector(
 
 describe('createSearch', () => {
   let database: Database.Database;
+  let config: ReturnType<typeof resolveConfig>;
   let store: Store;
   let links: Links;
   let embedder: Embedder;
@@ -47,7 +48,7 @@ describe('createSearch', () => {
   beforeEach(() => {
     database = new Database(':memory:');
     createSchema(database);
-    const config = resolveConfig({ embed: fakeEmbed });
+    config = resolveConfig({ embed: fakeEmbed });
     store = createStore(database, config);
     links = createLinks(database, config);
     embedder = createEmbedder(fakeEmbed);
@@ -172,7 +173,6 @@ describe('createSearch', () => {
     });
 
     it('direct match receives full proportional boost', async () => {
-      const config = resolveConfig({ embed: fakeEmbed });
       const memory = await insertWithVector(store, embedder, database, {
         content: 'the quick brown fox',
         type: 'fact',
@@ -196,7 +196,6 @@ describe('createSearch', () => {
     });
 
     it('link-expanded result receives hub-dampened boost', async () => {
-      const config = resolveConfig({ embed: fakeEmbed });
       const source = await insertWithVector(store, embedder, database, {
         content: 'the quick brown fox',
         type: 'fact',
@@ -257,7 +256,9 @@ describe('createSearch', () => {
       const hubInitial = store.get(hub.id)!.strength;
       const targetedInitial = store.get(targeted.id)!.strength;
 
-      await searcher.search('fox', { limit: 10, type: 'fact' });
+      const results = await searcher.search('fox', { limit: 10, type: 'fact' });
+      expect(results.some((r) => r.memory.id === hub.id)).toBe(true);
+      expect(results.some((r) => r.memory.id === targeted.id)).toBe(true);
 
       const hubStrengthDelta = store.get(hub.id)!.strength - hubInitial;
       const targetedStrengthDelta =

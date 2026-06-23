@@ -169,6 +169,7 @@ function createSearch(
     // --- Link expansion ---
     const primaryIds = new Set(primary.map((r) => r.memory.id));
     const expandedResults: SearchResult[] = [];
+    const expandedLinkCounts = new Map<string, number>();
 
     for (const result of primary) {
       const relatedLinks = links.related(result.memory.id);
@@ -205,6 +206,8 @@ function createSearch(
         const decayedWeight = link.weight * config.decayRate ** linkDays;
         const linkScore = result.score * decayedWeight * effective;
 
+        const linkedLinkCount = links.related(linkedId).length;
+        expandedLinkCounts.set(linkedId, linkedLinkCount);
         expandedResults.push({
           expanded: true,
           memory: { ...linkedMemory, strength: effective },
@@ -259,8 +262,12 @@ function createSearch(
 
     for (const result of diversified) {
       const scoreFraction = result.score / maxScore;
+      // Hub dampening: link-expanded results receive less boost per appearance
+      // based on their total link degree (global, not query-local). Memories
+      // with many connections appear in more searches but are less specifically
+      // relevant to any one query.
       const linkCount = result.expanded
-        ? Math.max(1, links.related(result.memory.id).length)
+        ? Math.max(1, expandedLinkCounts.get(result.memory.id) ?? 1)
         : 1;
       const effectiveBoost =
         config.reinforcementBoost * scoreFraction * (1 / linkCount);
