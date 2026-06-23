@@ -168,7 +168,7 @@ function createSearch(
 
     // --- Link expansion ---
     const primaryIds = new Set(primary.map((r) => r.memory.id));
-    const expanded: SearchResult[] = [];
+    const expandedResults: SearchResult[] = [];
 
     for (const result of primary) {
       const relatedLinks = links.related(result.memory.id);
@@ -198,12 +198,14 @@ function createSearch(
           continue;
         }
 
-        // Link expansion score: decayed link weight * discount factor
+        // Link expansion score: source RRF score * decayed link weight * linked memory effective strength
+        // This keeps link-expanded results on the same scale as direct matches and ensures
+        // they never exceed the score of the source that surfaced them.
         const linkDays = daysBetween(new Date(link.updated), now);
         const decayedWeight = link.weight * config.decayRate ** linkDays;
-        const linkScore = decayedWeight * 0.5;
+        const linkScore = result.score * decayedWeight * effective;
 
-        expanded.push({
+        expandedResults.push({
           expanded: true,
           memory: { ...linkedMemory, strength: effective },
           score: linkScore,
@@ -215,7 +217,7 @@ function createSearch(
     // --- Lineage diversification ---
     // Max 3 results from the same version chain to prevent one concept
     // from dominating results.
-    const all = [...primary, ...expanded];
+    const all = [...primary, ...expandedResults];
     all.sort((a, b) => b.score - a.score);
 
     const diversified: SearchResult[] = [];

@@ -147,5 +147,28 @@ describe('createSearch', () => {
       expect(direct?.expanded).toBe(false);
       expect(expanded?.expanded).toBe(true);
     });
+
+    it('link-expanded result scores no higher than its source direct match', async () => {
+      const source = await insertWithVector(store, embedder, database, {
+        content: 'the quick brown fox',
+        type: 'fact',
+      });
+      const linked = await insertWithVector(store, embedder, database, {
+        content: 'completely unrelated content',
+        type: 'note',
+      });
+      links.link(source.id, linked.id, 'related', 1);
+
+      const results = await searcher.search('fox', { limit: 5, type: 'fact' });
+      // type:'fact' filters primary pool — 'note' can only appear via link expansion
+      // IMPORTANT: the type option filters primary search but link expansion ignores it
+      // Read the code: options?.type is applied to FTS and vector queries but NOT to linkedMemory fetches
+      const sourceResult = results.find((r) => r.memory.id === source.id);
+      const linkedResult = results.find((r) => r.memory.id === linked.id);
+
+      expect(sourceResult).toBeDefined();
+      expect(linkedResult).toBeDefined();
+      expect(linkedResult!.score).toBeLessThanOrEqual(sourceResult!.score);
+    });
   });
 });
