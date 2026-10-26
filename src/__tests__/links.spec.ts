@@ -7,10 +7,12 @@ import { createLinks } from '../links.js';
 import { createStore } from '../store.js';
 
 import type { Links } from '../links.js';
+import type { Store } from '../store.js';
 
 describe('createLinks', () => {
   let database: Database.Database;
   let links: Links;
+  let store: Store;
   let idA: string;
   let idB: string;
   let idC: string;
@@ -19,13 +21,23 @@ describe('createLinks', () => {
     database = new Database(':memory:');
     createSchema(database);
     const config = resolveConfig();
-    const store = createStore(database, config);
+    store = createStore(database, config);
     links = createLinks(database, config);
 
     idA = store.insert({ content: 'memory A', type: 'fact' }).id;
     idB = store.insert({ content: 'memory B', type: 'fact' }).id;
     idC = store.insert({ content: 'memory C', type: 'fact' }).id;
   });
+
+  function supersede(id: string): string {
+    const newer = store.insert({
+      content: 'newer',
+      parentId: id,
+      type: 'fact',
+    });
+    database.prepare('UPDATE memories SET current = 0 WHERE id = ?').run(id);
+    return newer.id;
+  }
 
   describe('link', () => {
     it('creates a link between two memories', () => {
@@ -78,6 +90,52 @@ describe('createLinks', () => {
         .prepare('SELECT COUNT(*) as count FROM memory_links')
         .get() as { count: number };
       expect(rows.count).toBe(0);
+    });
+  });
+
+  describe('link with superseded IDs', () => {
+    it('links the current version of a superseded source', () => {
+      const a2 = supersede(idA);
+      links.link(idA, idB, 'related');
+      expect(links.related(a2)[0]?.sourceId).toBe(a2);
+      expect(links.related(idA)).toHaveLength(0);
+    });
+
+    it('links the current version of a superseded target', () => {
+      const b2 = supersede(idB);
+      links.link(idA, idB, 'related');
+      expect(links.related(b2)[0]?.targetId).toBe(b2);
+    });
+
+    it('follows several versions', () => {
+      const a3 = supersede(supersede(idA));
+      links.link(idA, idB, 'related');
+      expect(links.related(a3)).toHaveLength(1);
+    });
+
+    it('does nothing when both IDs resolve to the same memory', () => {
+      const a2 = supersede(idA);
+      expect(() => links.link(idA, a2, 'related')).not.toThrow();
+      const rows = database
+        .prepare('SELECT COUNT(*) as count FROM memory_links')
+        .get() as { count: number };
+      expect(rows.count).toBe(0);
+    });
+
+    it('links the last existing version when the newer one is gone', () => {
+      database.prepare('UPDATE memories SET current = 0 WHERE id = ?').run(idA);
+      links.link(idA, idB, 'related');
+      expect(links.related(idA)).toHaveLength(1);
+    });
+
+    it('stops on a parent cycle', () => {
+      const setParent = database.prepare(
+        'UPDATE memories SET parent_id = ?, current = 0 WHERE id = ?',
+      );
+      setParent.run(idB, idA);
+      setParent.run(idA, idB);
+      links.link(idA, idC, 'related');
+      expect(links.related(idC)).toHaveLength(1);
     });
   });
 

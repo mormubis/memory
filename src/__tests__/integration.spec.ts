@@ -278,7 +278,8 @@ describe('createMemory', () => {
 
     it('migrates links when a memory is auto-versioned', async () => {
       const { memory } = setup(0);
-      const other = await memory.remember('fact', 'orange is a fruit');
+      // Another type, so the threshold of 0 can't fold it into the fact chain.
+      const other = await memory.remember('topic', 'orange is a fruit');
       const v1 = await memory.remember('fact', 'apple is a fruit');
 
       memory.link(v1.id, other.id, 'similar');
@@ -301,7 +302,7 @@ describe('createMemory', () => {
 
     it('handles link migration conflicts via upsert', async () => {
       const { memory } = setup(0);
-      const other = await memory.remember('fact', 'orange is a fruit');
+      const other = await memory.remember('topic', 'orange is a fruit');
       const v1 = await memory.remember('fact', 'apple is a fruit');
 
       memory.link(v1.id, other.id, 'similar', 0.5);
@@ -376,5 +377,75 @@ describe('createMemory', () => {
       expect(memory.get(id)).toBeUndefined();
       expect(memory.list().find((m) => m.id === id)).toBeUndefined();
     });
+  });
+});
+
+describe('remember across types', () => {
+  const VECTORS: Record<string, number[]> = {
+    'Alice, SDK engineer': [1, 0, 0],
+    'Alice reviewed PR 42': [1, 0, 0],
+    'Alice, SDK engineer and reviewer': [0.99, 0.141, 0],
+    'Bob, designer': [0.8, 0.6, 0],
+    'a': [1, 0, 0],
+    'b': [0.98, 0.199, 0],
+    'c': [0.95, 0.312, 0],
+    'd': [0.9, 0.436, 0],
+  };
+
+  function setupVectors(): MemoryInstance {
+    return createMemory({
+      clock: () => new Date('2026-01-01T00:00:00Z'),
+      embed: async (text) => VECTORS[text] ?? [0, 0, 1],
+      path: ':memory:',
+      similarityThreshold: 0.85,
+    });
+  }
+
+  it('does not supersede a memory of a different type', async () => {
+    const memory = setupVectors();
+    const person = await memory.remember('person', 'Alice, SDK engineer');
+    const fact = await memory.remember('fact', 'Alice reviewed PR 42');
+
+    expect(fact.parentId).toBeUndefined();
+    expect(fact.version).toBe(1);
+    expect(memory.get(person.id)?.current).toBe(true);
+    expect(fact.similar).toHaveLength(1);
+    expect(fact.similar[0]).toMatchObject({ id: person.id, type: 'person' });
+    expect(fact.similar[0]?.similarity).toBeCloseTo(1);
+  });
+
+  it('supersedes the same-type match and reports other types in similar', async () => {
+    const memory = setupVectors();
+    const person = await memory.remember('person', 'Alice, SDK engineer');
+    const fact = await memory.remember('fact', 'Alice reviewed PR 42');
+    const updated = await memory.remember(
+      'person',
+      'Alice, SDK engineer and reviewer',
+    );
+
+    expect(updated.parentId).toBe(person.id);
+    expect(updated.similar.map((match) => match.id)).toEqual([fact.id]);
+    expect(memory.get(fact.id)?.current).toBe(true);
+  });
+
+  it('returns at most 3 similar memories, best first', async () => {
+    const memory = setupVectors();
+    const ids: string[] = [];
+    for (const type of ['a', 'b', 'c', 'd']) {
+      const { id } = await memory.remember(type, type);
+      ids.push(id);
+    }
+    const result = await memory.remember('e', 'a');
+
+    expect(result.similar.map((match) => match.id)).toEqual(ids.slice(0, 3));
+  });
+
+  it('leaves out other types below the threshold', async () => {
+    const memory = setupVectors();
+    await memory.remember('person', 'Alice, SDK engineer');
+    const result = await memory.remember('fact', 'Bob, designer');
+
+    expect(result.parentId).toBeUndefined();
+    expect(result.similar).toEqual([]);
   });
 });

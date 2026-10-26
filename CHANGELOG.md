@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.5.0] - 2026-10-26
+
+### Changed
+
+- `remember()` only auto-versions against memories of the same type. Previously,
+  new content similar to a memory of another type superseded it, so a `person`
+  could become a `fact` and drag its links along. That memory now stays current.
+- `better-sqlite3` is now `^13.0.1`. Apps that open the same database with their
+  own `better-sqlite3` should move to the same major, so a single SQLite build
+  touches the file.
+
+### Added
+
+- `RememberResult.similar`: current memories of other types at or above
+  `similarityThreshold`, best first, at most 3. Each entry is
+  `{ id, similarity, type }`. It is always present, `[]` when nothing matches.
+  Wrappers can link these instead of losing them to a merge.
+
+### Fixed
+
+- `link()` resolves superseded IDs to the current version of their chain, so a
+  link made with a stale ID no longer lands on a memory nothing reads. When both
+  IDs resolve to the same memory, it does nothing instead of creating a
+  self-link.
+- `remember()` reads each candidate's version in the same query as its vector,
+  instead of one extra query per stored memory.
+
 ## [0.4.2] - 2026-06-23
 
 ### Fixed

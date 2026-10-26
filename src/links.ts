@@ -38,6 +38,23 @@ function createLinks(
   config: ResolvedConfig,
 ): Links {
   const existsStmt = database.prepare('SELECT id FROM memories WHERE id = ?');
+  const childStmt = database.prepare(
+    'SELECT id FROM memories WHERE parent_id = ?',
+  );
+
+  // Follow the version chain to its newest memory, so a link made with a
+  // superseded ID lands on the version that replaced it.
+  function resolveCurrent(id: string): string {
+    const seen = new Set([id]);
+    let current = id;
+    let child = childStmt.get(current) as { id: string } | undefined;
+    while (child && !seen.has(child.id)) {
+      seen.add(child.id);
+      current = child.id;
+      child = childStmt.get(current) as { id: string } | undefined;
+    }
+    return current;
+  }
 
   function link(
     sourceId: string,
@@ -52,6 +69,10 @@ function createLinks(
       throw new Error(`targetId "${targetId}" does not exist`);
     }
 
+    const source = resolveCurrent(sourceId);
+    const target = resolveCurrent(targetId);
+    if (source === target) return;
+
     const now = config.clock().toISOString();
     database
       .prepare(
@@ -63,7 +84,7 @@ function createLinks(
         updated = excluded.updated
     `,
       )
-      .run(sourceId, targetId, relation, weight, now, now);
+      .run(source, target, relation, weight, now, now);
   }
 
   function unlink(sourceId: string, targetId: string, relation?: string): void {

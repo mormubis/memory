@@ -34,14 +34,14 @@ const result = await memory.remember(
   'fact',
   'FIDE requires Buchholz as primary tiebreaker',
 );
-// { id: '...', version: 1, parentId: null }
+// { id: '...', version: 1, parentId: null, similar: [] }
 
-// Similar content auto-versions
+// Similar content of the same type auto-versions
 const v2 = await memory.remember(
   'fact',
   'FIDE requires Buchholz as the primary tiebreaker in Swiss',
 );
-// { id: '...', version: 2, parentId: result.id }
+// { id: '...', version: 2, parentId: result.id, similar: [] }
 
 // Search (BM25 + vector + link expansion)
 const results = await memory.search('tiebreaker rules');
@@ -64,10 +64,13 @@ memory.unlink(result.id, v2.id, 'related_to');
 
 Single SQLite file. One table for all memories regardless of type or maturity.
 
-**Versioning** — When you insert content similar to an existing memory (cosine
-similarity above threshold), the library creates a new version and auto-boosts
-its strength: `max(provided, previous_effective + reinforcementBoost)`. Repeated
-mentions accumulate strength naturally.
+**Versioning** — When you insert content similar to an existing memory of the
+same type (cosine similarity above threshold), the library creates a new version
+and auto-boosts its strength:
+`max(provided, previous_effective + reinforcementBoost)`. Repeated mentions
+accumulate strength naturally. Similar memories of other types are never
+superseded: `remember()` returns them in `similar` (best first, at most 3) so
+the wrapper can link them instead.
 
 **Decay** — Lazy Ebbinghaus-inspired. Strength decays over time:
 `effective = strength * decayRate^days`. Computed on read, not stored until
@@ -105,17 +108,17 @@ createMemory({
 
 ## API
 
-| Method                                    | Description                                     |
-| ----------------------------------------- | ----------------------------------------------- |
-| `remember(type, content, strength?)`      | Insert or auto-version a memory                 |
-| `search(query, options?)`                 | Hybrid BM25 + vector search with link expansion |
-| `get(id)`                                 | Fetch by ID (reinforces strength if current)    |
-| `list(options?)`                          | List current memories with decay filtering      |
-| `history(id)`                             | Version chain (newest to oldest)                |
-| `link(source, target, relation, weight?)` | Create or reinforce a link                      |
-| `unlink(source, target, relation?)`       | Hard delete a link                              |
-| `related(id, options?)`                   | Get linked memories                             |
-| `forget(id)`                              | Hard delete a memory, its vector, and links     |
+| Method                                    | Description                                                                |
+| ----------------------------------------- | -------------------------------------------------------------------------- |
+| `remember(type, content, strength?)`      | Insert or auto-version a memory of the same type                           |
+| `search(query, options?)`                 | Hybrid BM25 + vector search with link expansion                            |
+| `get(id)`                                 | Fetch by ID (reinforces strength if current)                               |
+| `list(options?)`                          | List current memories with decay filtering                                 |
+| `history(id)`                             | Version chain (newest to oldest)                                           |
+| `link(source, target, relation, weight?)` | Create or reinforce a link (superseded IDs resolve to the current version) |
+| `unlink(source, target, relation?)`       | Hard delete a link                                                         |
+| `related(id, options?)`                   | Get linked memories                                                        |
+| `forget(id)`                              | Hard delete a memory, its vector, and links                                |
 
 ## Design
 
