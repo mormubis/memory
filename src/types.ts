@@ -25,9 +25,16 @@ interface SearchResult {
   score: number;
 }
 
+interface SimilarMemory {
+  id: string;
+  similarity: number;
+  type: string;
+}
+
 interface RememberResult {
   id: string;
   parentId: string | undefined;
+  similar: SimilarMemory[];
   version: number;
 }
 
@@ -65,4 +72,5 @@ export type {
   RememberResult,
   SearchOptions,
   SearchResult,
+  SimilarMemory,
 };

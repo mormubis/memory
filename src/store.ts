@@ -43,7 +43,7 @@ interface Store {
   forget: (id: string) => void;
   get: (id: string) => Memory | undefined;
   history: (id: string) => Memory[];
-  insert: (input: InsertInput) => RememberResult;
+  insert: (input: InsertInput) => Omit<RememberResult, 'similar'>;
   list: (options?: ListOptions) => Memory[];
 }
 
@@ -51,7 +51,7 @@ function createStore(
   database: Database.Database,
   config: ResolvedConfig,
 ): Store {
-  function insert(input: InsertInput): RememberResult {
+  function insert(input: InsertInput): Omit<RememberResult, 'similar'> {
     const id = generateId();
     const now = config.clock().toISOString();
     const strength = input.strength ?? config.defaultStrength;

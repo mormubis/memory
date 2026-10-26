@@ -7,7 +7,7 @@ import { createEmbedder } from './embed.js';
 import { createLinks } from './links.js';
 import { createSearch } from './search.js';
 import { createStore } from './store.js';
-import { findSimilar } from './versioning.js';
+import { cosineSimilarity, findSimilar } from './versioning.js';
 
 import type { MemoryConfig } from './config.js';
 import type {
@@ -46,6 +46,8 @@ interface MemoryInstance {
 interface VectorRow {
   embedding: Buffer;
   memory_id: string;
+  type: string;
+  version: number;
 }
 
 function createMemory(input?: MemoryConfig): MemoryInstance {
@@ -68,31 +70,40 @@ function createMemory(input?: MemoryConfig): MemoryInstance {
     // Load all current memories with their vectors
     const vectorRows = database
       .prepare(
-        'SELECT mv.memory_id, mv.embedding FROM memory_vectors mv JOIN memories m ON m.id = mv.memory_id WHERE m.current = 1',
+        'SELECT mv.memory_id, mv.embedding, m.type, m.version FROM memory_vectors mv JOIN memories m ON m.id = mv.memory_id WHERE m.current = 1',
       )
       .all() as VectorRow[];
 
     const candidates = vectorRows.map((row) => ({
       embedding: embedder.fromBlob(row.embedding),
       id: row.memory_id,
-      version:
-        (
-          database
-            .prepare('SELECT version FROM memories WHERE id = ?')
-            .get(row.memory_id) as { version: number } | undefined
-        )?.version ?? 1,
+      type: row.type,
+      version: row.version,
     }));
 
+    // Only a memory of the same type can be superseded. Similar memories of
+    // other types are reported so the caller can link them instead.
     const match = findSimilar(
       embedding,
-      candidates,
+      candidates.filter((candidate) => candidate.type === type),
       config.similarityThreshold,
     );
+
+    const similar = candidates
+      .filter((candidate) => candidate.type !== type)
+      .map((candidate) => ({
+        id: candidate.id,
+        similarity: cosineSimilarity(embedding, candidate.embedding),
+        type: candidate.type,
+      }))
+      .filter((candidate) => candidate.similarity >= config.similarityThreshold)
+      .toSorted((a, b) => b.similarity - a.similarity)
+      .slice(0, 3);
 
     const resolvedStrength =
       strength ?? config.typeStrength[type] ?? config.defaultStrength;
 
-    let result: RememberResult;
+    let result: Omit<RememberResult, 'similar'>;
 
     if (match) {
       // Fetch previous version's stored strength and updated timestamp
@@ -156,7 +167,7 @@ function createMemory(input?: MemoryConfig): MemoryInstance {
       )
       .run(result.id, blob);
 
-    return result;
+    return { ...result, similar };
   }
 
   function get(id: string): Memory | undefined {
@@ -296,5 +307,6 @@ export {
   type RememberResult,
   type SearchOptions,
   type SearchResult,
+  type SimilarMemory,
 } from './types.js';
 export { type MemoryConfig } from './config.js';
