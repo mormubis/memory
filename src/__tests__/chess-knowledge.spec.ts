@@ -276,7 +276,14 @@ describe('chess knowledge base', () => {
       const linkedIndex = fixture.links[0]?.source;
       expect(linkedIndex).toBeDefined();
       expect(ids[linkedIndex!]).toBeDefined();
-      const related = memory.related(ids[linkedIndex!]!);
+      // Its ID may have been superseded since; links live on the current version.
+      const current = memory
+        .list()
+        .find((m) =>
+          memory.history(m.id).some((v) => v.id === ids[linkedIndex!]),
+        );
+      expect(current).toBeDefined();
+      const related = memory.related(current!.id);
       expect(related.length).toBeGreaterThan(0);
     });
 

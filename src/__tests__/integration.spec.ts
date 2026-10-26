@@ -278,7 +278,8 @@ describe('createMemory', () => {
 
     it('migrates links when a memory is auto-versioned', async () => {
       const { memory } = setup(0);
-      const other = await memory.remember('fact', 'orange is a fruit');
+      // Another type, so the threshold of 0 can't fold it into the fact chain.
+      const other = await memory.remember('topic', 'orange is a fruit');
       const v1 = await memory.remember('fact', 'apple is a fruit');
 
       memory.link(v1.id, other.id, 'similar');
@@ -301,7 +302,7 @@ describe('createMemory', () => {
 
     it('handles link migration conflicts via upsert', async () => {
       const { memory } = setup(0);
-      const other = await memory.remember('fact', 'orange is a fruit');
+      const other = await memory.remember('topic', 'orange is a fruit');
       const v1 = await memory.remember('fact', 'apple is a fruit');
 
       memory.link(v1.id, other.id, 'similar', 0.5);
