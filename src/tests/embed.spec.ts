@@ -33,8 +33,8 @@ describe('createEmbedder', () => {
       const blob = embedder.toBlob(original);
       const restored = embedder.fromBlob(blob);
       expect(restored).toHaveLength(original.length);
-      for (const [index, element] of original.entries()) {
-        expect(restored[index]).toBeCloseTo(element ?? 0, 5);
+      for (const [index, element = 0] of original.entries()) {
+        expect(restored[index]).toBeCloseTo(element, 5);
       }
     });
 

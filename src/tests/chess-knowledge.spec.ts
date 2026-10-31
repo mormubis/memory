@@ -31,7 +31,7 @@ interface Fixture {
 
 // deterministic fake embedder — bigram frequencies over 64 dimensions
 async function fakeEmbed(text: string): Promise<number[]> {
-  const vec = Array.from({ length: 64 }).fill(0) as number[];
+  const vec = Array.from({ length: 64 }, () => 0);
   const lower = text.toLowerCase();
   for (let index = 0; index < lower.length - 1; index++) {
     const bigram =

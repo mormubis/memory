@@ -14,8 +14,8 @@ export default typescript.config(
   importing.flatConfigs.typescript,
   unicorn.configs.recommended,
   /**
-   * Common
-   */
+  Common
+  */
   {
     languageOptions: {
       ecmaVersion: 'latest',
@@ -60,8 +60,8 @@ export default typescript.config(
     },
   },
   /**
-   * TypeScript
-   */
+  TypeScript
+  */
   {
     files: ['**/*.{mts,ts,tsx}'],
     languageOptions: {
@@ -90,10 +90,10 @@ export default typescript.config(
     },
   },
   /**
-   * Tests
-   */
+  Tests
+  */
   {
-    files: ['**/__tests__/**/*.ts', '**/*.spec.ts', '**/*.test.ts'],
+    files: ['**/tests/**/*.ts', '**/*.spec.ts', '**/*.test.ts'],
     plugins: { vitest },
     rules: {
       ...vitest.configs.recommended.rules,

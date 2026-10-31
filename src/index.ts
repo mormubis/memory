@@ -184,11 +184,9 @@ function createMemory(input?: MemoryConfig): MemoryInstance {
         config.decayRate,
       );
 
-      if (effective < config.evictionThreshold) {
-        return undefined;
-      }
-
-      return { ...memory, strength: effective };
+      return effective < config.evictionThreshold
+        ? undefined
+        : { ...memory, strength: effective };
     }
 
     return memory;
@@ -272,11 +270,11 @@ function createMemory(input?: MemoryConfig): MemoryInstance {
   }
 
   function deleteVectors(ids: string[]): void {
-    const stmt = database.prepare(
+    const statement = database.prepare(
       'DELETE FROM memory_vectors WHERE memory_id = ?',
     );
     for (const id of ids) {
-      stmt.run(id);
+      statement.run(id);
     }
   }
 

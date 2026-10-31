@@ -82,7 +82,7 @@ describe('createStore', () => {
         .run();
 
       const results = store.list();
-      expect(results.every((m) => m.current === true)).toBe(true);
+      expect(results.every((m) => m.current)).toBe(true);
       expect(results.some((m) => m.content === 'old content')).toBe(false);
     });
 
