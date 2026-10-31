@@ -8,7 +8,7 @@ interface Embedder {
 
 function toBlob(vector: number[]): Buffer {
   const float32 = new Float32Array(vector);
-  return Buffer.from(float32.buffer);
+  return Buffer.from(float32.buffer, float32.byteOffset, float32.byteLength);
 }
 
 function fromBlob(blob: Buffer): number[] {

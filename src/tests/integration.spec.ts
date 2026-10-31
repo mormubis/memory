@@ -5,7 +5,7 @@ import { createMemory } from '../index.js';
 import type { MemoryInstance } from '../index.js';
 
 async function fakeEmbed(text: string): Promise<number[]> {
-  const vec = Array.from<number>({ length: 8 }).fill(0);
+  const vec = Array.from({ length: 8 }, () => 0);
   for (let index = 0; index < text.length; index++) {
     vec[index % 8]! += (text.codePointAt(index) ?? 0) / 1000;
   }
@@ -14,10 +14,10 @@ async function fakeEmbed(text: string): Promise<number[]> {
 }
 
 /**
- * Default setup with similarityThreshold=1.0 so the fake embedder never
- * accidentally creates versions for unrelated content (fakeEmbed produces
- * high cosine similarity for all text since it's character-frequency based).
- */
+Default setup with similarityThreshold=1.0 so the fake embedder never
+accidentally creates versions for unrelated content (fakeEmbed produces
+high cosine similarity for all text since it's character-frequency based).
+*/
 function setup(similarityThreshold = 1): {
   advance: (days: number) => void;
   memory: MemoryInstance;

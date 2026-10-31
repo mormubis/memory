@@ -37,8 +37,10 @@ function createLinks(
   database: Database.Database,
   config: ResolvedConfig,
 ): Links {
-  const existsStmt = database.prepare('SELECT id FROM memories WHERE id = ?');
-  const childStmt = database.prepare(
+  const existsStatement = database.prepare(
+    'SELECT id FROM memories WHERE id = ?',
+  );
+  const childStatement = database.prepare(
     'SELECT id FROM memories WHERE parent_id = ?',
   );
 
@@ -47,11 +49,11 @@ function createLinks(
   function resolveCurrent(id: string): string {
     const seen = new Set([id]);
     let current = id;
-    let child = childStmt.get(current) as { id: string } | undefined;
+    let child = childStatement.get(current) as { id: string } | undefined;
     while (child && !seen.has(child.id)) {
       seen.add(child.id);
       current = child.id;
-      child = childStmt.get(current) as { id: string } | undefined;
+      child = childStatement.get(current) as { id: string } | undefined;
     }
     return current;
   }
@@ -62,10 +64,10 @@ function createLinks(
     relation: string,
     weight = 1,
   ): void {
-    if (!existsStmt.get(sourceId)) {
+    if (!existsStatement.get(sourceId)) {
       throw new Error(`sourceId "${sourceId}" does not exist`);
     }
-    if (!existsStmt.get(targetId)) {
+    if (!existsStatement.get(targetId)) {
       throw new Error(`targetId "${targetId}" does not exist`);
     }
 

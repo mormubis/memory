@@ -112,7 +112,7 @@ function createStore(
 
     const now = config.clock();
     const nowIso = now.toISOString();
-    const decayStmt = database.prepare(
+    const decayStatement = database.prepare(
       'UPDATE memories SET strength = ?, updated = ? WHERE id = ?',
     );
 
@@ -136,7 +136,7 @@ function createStore(
 
       // Persist the decayed strength so the DB reflects the true current value.
       // Updating `updated` resets the decay baseline for subsequent reads.
-      decayStmt.run(effective, nowIso, row.id);
+      decayStatement.run(effective, nowIso, row.id);
       memories.push(
         rowToMemory({ ...row, strength: effective, updated: nowIso }),
       );

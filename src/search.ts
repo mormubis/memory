@@ -4,7 +4,7 @@ import type { ResolvedConfig } from './config.js';
 import type { Embedder } from './embed.js';
 import type { Links } from './links.js';
 import type { Store } from './store.js';
-import type { SearchOptions, SearchResult } from './types.js';
+import type { Memory, SearchOptions, SearchResult } from './types.js';
 import type Database from 'better-sqlite3';
 
 interface VectorRow {
@@ -19,6 +19,21 @@ interface FtsRow {
 
 interface Search {
   search: (query: string, options?: SearchOptions) => Promise<SearchResult[]>;
+}
+
+// Walk back to find the root of the version chain
+function lineageRoot(store: Store, memory: Memory): string {
+  let rootId = memory.id;
+  let current = memory;
+  while (current.parentId) {
+    rootId = current.parentId;
+    const parent = store.get(current.parentId);
+    if (!parent) {
+      break;
+    }
+    current = parent;
+  }
+  return rootId;
 }
 
 function createSearch(
@@ -83,8 +98,8 @@ function createSearch(
       let dot = 0;
       let normA = 0;
       let normB = 0;
-      for (const [index, element] of queryEmbedding.entries()) {
-        const ai = element ?? 0;
+      for (const [index, element = 0] of queryEmbedding.entries()) {
+        const ai = element;
         const bi = vec[index] ?? 0;
         dot += ai * bi;
         normA += ai * ai;
@@ -139,7 +154,7 @@ function createSearch(
     // --- Fetch memories, apply decay filter (but don't use strength in score) ---
     const primary: SearchResult[] = [];
 
-    for (const [id, rrfScore] of rrfScores.entries()) {
+    for (const [id, rrfScore] of rrfScores) {
       const memory = store.get(id);
       if (!memory) {
         continue;
@@ -152,10 +167,7 @@ function createSearch(
         config.decayRate,
       );
 
-      if (effective < config.evictionThreshold) {
-        continue;
-      }
-      if (effective < minStrength) {
+      if (effective < config.evictionThreshold || effective < minStrength) {
         continue;
       }
 
@@ -192,10 +204,7 @@ function createSearch(
           config.decayRate,
         );
 
-        if (effective < config.evictionThreshold) {
-          continue;
-        }
-        if (effective < minStrength) {
+        if (effective < config.evictionThreshold || effective < minStrength) {
           continue;
         }
 
@@ -228,17 +237,7 @@ function createSearch(
     const maxPerLineage = 3;
 
     for (const result of all) {
-      // Walk back to find the root of the version chain
-      let rootId = result.memory.id;
-      let current = result.memory;
-      while (current.parentId) {
-        rootId = current.parentId;
-        const parent = store.get(current.parentId);
-        if (!parent) {
-          break;
-        }
-        current = parent;
-      }
+      const rootId = lineageRoot(store, result.memory);
 
       const count = lineageCounts.get(rootId) ?? 0;
       if (count >= maxPerLineage) {
@@ -254,7 +253,7 @@ function createSearch(
     }
 
     // --- Reinforce returned memories ---
-    const reinforceStmt = database.prepare(
+    const reinforceStatement = database.prepare(
       'UPDATE memories SET strength = ?, updated = ? WHERE id = ?',
     );
     const nowIso = now.toISOString();
@@ -273,7 +272,7 @@ function createSearch(
         config.reinforcementBoost * scoreFraction * (1 / linkCount);
 
       const reinforced = reinforce(result.memory.strength, effectiveBoost);
-      reinforceStmt.run(reinforced, nowIso, result.memory.id);
+      reinforceStatement.run(reinforced, nowIso, result.memory.id);
       result.memory.strength = reinforced;
     }
 

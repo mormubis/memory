@@ -129,11 +129,11 @@ describe('createLinks', () => {
     });
 
     it('stops on a parent cycle', () => {
-      const setParent = database.prepare(
+      const parentStatement = database.prepare(
         'UPDATE memories SET parent_id = ?, current = 0 WHERE id = ?',
       );
-      setParent.run(idB, idA);
-      setParent.run(idA, idB);
+      parentStatement.run(idB, idA);
+      parentStatement.run(idA, idB);
       links.link(idA, idC, 'related');
       expect(links.related(idC)).toHaveLength(1);
     });

@@ -14,18 +14,15 @@ function cosineSimilarity(a: number[], b: number[]): number {
   let dot = 0;
   let normA = 0;
   let normB = 0;
-  for (const [index, element] of a.entries()) {
-    const ai = element ?? 0;
+  for (const [index, element = 0] of a.entries()) {
+    const ai = element;
     const bi = b[index] ?? 0;
     dot += ai * bi;
     normA += ai * ai;
     normB += bi * bi;
   }
   const denom = Math.sqrt(normA) * Math.sqrt(normB);
-  if (denom === 0) {
-    return 0;
-  }
-  return dot / denom;
+  return denom === 0 ? 0 : dot / denom;
 }
 
 function findSimilar(
